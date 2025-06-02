@@ -153,11 +153,11 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if m.state == requestState {
-		var cmd tea.Cmd
-		m.anim, cmd = m.anim.Update(msg)
-		cmds = append(cmds, cmd)
-	}
+	// if m.state == requestState {
+	// 	var cmd tea.Cmd
+	// 	m.anim, cmd = m.anim.Update(msg)
+	// 	cmds = append(cmds, cmd)
+	// }
 
 	if m.viewportNeeded() {
 		// Only respond to keypresses when the viewport (i.e. the content) is
