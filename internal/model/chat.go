@@ -9,7 +9,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/TZGyn/kode/internal/animation"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -94,8 +93,8 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case initMsg:
 		m.state = requestState
-		m.anim = animation.NewAnim("Generating")
-		cmds = append(cmds, m.anim.Init())
+		// m.anim = animation.NewAnim("Generating")
+		// cmds = append(cmds, m.anim.Init())
 		cmds = append(cmds, func() tea.Msg { return generatingMsg{} })
 	case generatingMsg:
 		m.stream = m.chat.SendMessageStream(m.context, genai.Part{Text: m.Prompt})
