@@ -76,6 +76,8 @@ var rootCmd = &cobra.Command{
 		if err := json.Unmarshal(content, &c); err != nil {
 			return err
 		}
+		opts := []tea.ProgramOption{}
+		opts = append(opts, tea.WithOutput(os.Stderr))
 
 		for {
 			var prompt string
@@ -84,7 +86,7 @@ var rootCmd = &cobra.Command{
 				huh.NewText().Title("Enter a prompt:").
 					Value(&prompt)
 
-			err := promptForm.Run()
+			err = promptForm.Run()
 
 			if err != nil && err == huh.ErrUserAborted {
 				return errors.New("user canceled")
@@ -104,7 +106,7 @@ var rootCmd = &cobra.Command{
 
 			chatModel := model.InitialModel(prompt, c)
 
-			p := tea.NewProgram(chatModel)
+			p := tea.NewProgram(chatModel, opts...)
 			m, err := p.Run()
 			if err != nil {
 				fmt.Printf("Alas, there's been an error: %v", err)
@@ -123,7 +125,6 @@ var rootCmd = &cobra.Command{
 				fmt.Println(out)
 			} else {
 				fmt.Println("No Response")
-				break
 			}
 		}
 		return nil
