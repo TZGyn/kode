@@ -177,7 +177,7 @@ func (m *ChatModel) viewportNeeded() bool {
 func (m *ChatModel) View() string {
 	switch m.state {
 	case requestState:
-		return m.anim.View()
+		// return m.anim.View()
 	case responseState:
 		if m.viewportNeeded() {
 			return m.glamViewport.View()
