@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/TZGyn/kode/internal/animation"
+	"github.com/TZGyn/kode/internal/google"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -32,6 +33,7 @@ type ChatModel struct {
 	state    state
 	stream   iter.Seq2[*genai.GenerateContentResponse, error]
 	status   string
+	client   *genai.Client
 	chat     *genai.Chat
 	context  context.Context
 	Prompt   string
@@ -68,21 +70,17 @@ func InitialModel(prompt string, config ChatConfig) *ChatModel {
 
 	ctx := context.Background()
 
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  config.GEMINI_API_KEY,
-		Backend: genai.BackendGeminiAPI,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	googleConfig := google.DefaultConfig(config.GEMINI_API_KEY)
 
-	chat, err := client.Chats.Create(ctx, "gemini-2.0-flash", nil, nil)
+	client, chat, err := google.CreateGoogle(ctx, googleConfig)
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	return &ChatModel{
 		state:        startState,
+		client:       client,
 		chat:         chat,
 		context:      ctx,
 		Prompt:       prompt,
@@ -108,16 +106,13 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.anim.Init(), func() tea.Msg { return generatingMsg{} })
 	case generatingMsg:
 		go func(model *ChatModel) {
-			model.stream = model.chat.SendMessageStream(model.context, genai.Part{Text: model.Prompt})
-			for result, err := range model.stream {
-				if err != nil {
-					model.status = "done"
-					return
-				}
-				model.Response = model.Response + result.Text()
-
-			}
-			model.status = "done"
+			google.SendMessage(
+				model.context,
+				model.chat,
+				genai.Part{Text: model.Prompt},
+				&model.status,
+				&model.Response,
+			)
 		}(m)
 		cmds = append(cmds, func() tea.Msg { return receivingMsg{} })
 	case receivingMsg:
