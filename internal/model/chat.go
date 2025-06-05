@@ -110,9 +110,9 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				model.context,
 				model.chat,
 				genai.Part{Text: model.Prompt},
-				&model.status,
 				&model.Response,
 			)
+			model.status = "done"
 		}(m)
 		cmds = append(cmds, func() tea.Msg { return receivingMsg{} })
 	case receivingMsg:

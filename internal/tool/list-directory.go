@@ -1,6 +1,10 @@
 package tool
 
-import "os"
+import (
+	"os"
+	"sort"
+	"strings"
+)
 
 func ListDirectory(directory string) ([]string, error) {
 	result := []string{}
@@ -9,6 +13,16 @@ func ListDirectory(directory string) ([]string, error) {
 	if err != nil {
 		return result, err
 	}
+
+	sort.Slice(entires, func(i, j int) bool {
+		if entires[i].IsDir() == entires[j].IsDir() {
+			return strings.ToLower(entires[i].Name()) < strings.ToLower(entires[j].Name())
+		}
+		if !entires[i].IsDir() {
+			return true
+		}
+		return false
+	})
 
 	for _, e := range entires {
 		name := e.Name()

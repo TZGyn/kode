@@ -2,7 +2,8 @@ package google
 
 import (
 	"context"
-	"strings"
+	"fmt"
+	"time"
 
 	"github.com/TZGyn/kode/internal/tool"
 	"google.golang.org/genai"
@@ -29,7 +30,26 @@ func CreateGoogle(ctx context.Context, config Config) (*genai.Client, *genai.Cha
 		ctx,
 		"gemini-2.0-flash",
 		&genai.GenerateContentConfig{
-			// SystemInstruction: &genai.Content{},
+			SystemInstruction: &genai.Content{
+				Role: "system",
+				Parts: []*genai.Part{
+					{
+						Text: fmt.Sprintf(`
+							You are a chat assistant
+							Today's Date: %s
+
+							It is a must to generate some text, letting the user knows your thinking process before using a tool.
+							Thus providing better user experience, rather than immediately jump to using the tool and generate a conclusion
+
+							Common Order: Tool, Text
+							Better order you must follow: Text, Tool, Text
+
+							You have been given a tool which will take a directory as input and return its direct children
+							You must call this tool repeatedly until you fulfill the user request
+						`, time.Now().Format("2006-01-02 15:04:05")),
+					},
+				},
+			},
 			Tools: []*genai.Tool{
 				{
 					FunctionDeclarations: []*genai.FunctionDeclaration{
@@ -73,59 +93,62 @@ func CreateGoogle(ctx context.Context, config Config) (*genai.Client, *genai.Cha
 	return client, chat, nil
 }
 
-func SendMessage(ctx context.Context, chat *genai.Chat, part genai.Part, status *string, response *string) {
+func SendMessage(ctx context.Context, chat *genai.Chat, part genai.Part, response *string) {
 	stream := chat.SendMessageStream(
 		ctx,
 		part,
 	)
 	for result, err := range stream {
 		if err != nil {
-			*status = "done"
 			return
 		}
 
-		var texts []string
 		for _, part := range result.Candidates[0].Content.Parts {
 			if part.Text != "" {
 				if part.Thought {
 					continue
 				}
-				texts = append(texts, part.Text)
+				*response = *response + part.Text
 			}
-		}
+			if part.FunctionCall != nil {
+				functionCall := part.FunctionCall
+				if functionCall.Name == "list-directory" {
+					result := []string{}
 
-		*response = *response + strings.Join(texts, "")
+					directory, ok := functionCall.Args["directory"].(string)
+					if ok {
+						entires, err := tool.ListDirectory(directory)
+						if err == nil {
+							result = entires
+						}
 
-		if len(result.FunctionCalls()) == 1 {
-			functionCall := result.FunctionCalls()[0]
-			if functionCall.Name == "list-directory" {
-				result := []string{}
+						toolResult := ""
+						toolResult += "## Files Start\n"
+						for _, entry := range result {
+							toolResult += "- " + entry + "\n"
+						}
+						toolResult += "## Files End\n"
 
-				directory, ok := functionCall.Args["directory"].(string)
-				if ok {
-					entires, err := tool.ListDirectory(directory)
-					if err == nil {
-						result = entires
+						*response = *response + toolResult
 					}
-				}
 
-				SendMessage(
-					ctx,
-					chat,
-					genai.Part{
-						FunctionResponse: &genai.FunctionResponse{
-							ID:   functionCall.ID,
-							Name: functionCall.Name,
-							Response: map[string]any{
-								"children": result,
+					SendMessage(
+						ctx,
+						chat,
+						genai.Part{
+							FunctionResponse: &genai.FunctionResponse{
+								ID:   functionCall.ID,
+								Name: functionCall.Name,
+								Response: map[string]any{
+									"children": result,
+								},
 							},
 						},
-					},
-					status,
-					response,
-				)
+						response,
+					)
+				}
 			}
 		}
 	}
-	*status = "done"
+
 }
