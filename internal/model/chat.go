@@ -3,10 +3,10 @@ package model
 import (
 	"context"
 	"fmt"
-	"iter"
 	"log"
 	"os"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/TZGyn/kode/internal/animation"
@@ -29,15 +29,15 @@ const (
 )
 
 type ChatModel struct {
-	anim     tea.Model
-	state    state
-	stream   iter.Seq2[*genai.GenerateContentResponse, error]
-	status   string
-	client   *genai.Client
-	chat     *genai.Chat
-	context  context.Context
-	Prompt   string
-	Response string
+	anim          tea.Model
+	state         state
+	status        string
+	client        *genai.Client
+	chat          *genai.Chat
+	context       context.Context
+	cancelRequest context.CancelFunc
+	Prompt        string
+	Response      string
 
 	glam         *glamour.TermRenderer
 	glamHeight   int
@@ -68,7 +68,7 @@ func InitialModel(prompt string, config ChatConfig) *ChatModel {
 
 	renderer := lipgloss.NewRenderer(os.Stderr, termenv.WithColorCache(true))
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 
 	googleConfig := google.DefaultConfig(config.GEMINI_API_KEY)
 
@@ -79,15 +79,16 @@ func InitialModel(prompt string, config ChatConfig) *ChatModel {
 	}
 
 	return &ChatModel{
-		state:        startState,
-		client:       client,
-		chat:         chat,
-		context:      ctx,
-		Prompt:       prompt,
-		status:       "generating",
-		glam:         gr,
-		glamViewport: vp,
-		renderer:     renderer,
+		state:         startState,
+		client:        client,
+		chat:          chat,
+		context:       ctx,
+		cancelRequest: cancel,
+		Prompt:        prompt,
+		status:        "generating",
+		glam:          gr,
+		glamViewport:  vp,
+		renderer:      renderer,
 	}
 }
 
@@ -150,7 +151,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.status == "done" {
 			m.state = doneState
 
-			return m, tea.Quit
+			return m, m.quit
 		}
 
 		cmds = append(cmds, func() tea.Msg { return receivingMsg{} })
@@ -162,7 +163,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
-			return m, tea.Quit
+			return m, m.quit
 		}
 	}
 
@@ -179,6 +180,13 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *ChatModel) quit() tea.Msg {
+	if m.cancelRequest != nil {
+		m.cancelRequest()
+	}
+	return tea.Quit()
 }
 
 func (m *ChatModel) viewportNeeded() bool {

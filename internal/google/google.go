@@ -45,7 +45,7 @@ func CreateGoogle(ctx context.Context, config Config) (*genai.Client, *genai.Cha
 							Better order you must follow: Text, Tool, Text
 
 							You have been given a tool which will take a directory as input and return its direct children
-							You must call this tool repeatedly until you fulfill the user request
+							You may call this tool repeatedly until you fulfill the user request
 						`, time.Now().Format("2006-01-02 15:04:05")),
 					},
 				},
@@ -75,6 +75,28 @@ func CreateGoogle(ctx context.Context, config Config) (*genai.Client, *genai.Cha
 											Type:        "string",
 											Description: "children, folder or file",
 										},
+									},
+								},
+							},
+						},
+						{
+							Name:        "cat-file",
+							Description: "Given a file path, return all its content as string",
+							Parameters: &genai.Schema{
+								Type: "object",
+								Properties: map[string]*genai.Schema{
+									"filePath": {
+										Type:        "string",
+										Description: "the file path to output relative to root",
+									},
+								},
+							},
+							Response: &genai.Schema{
+								Type: "object",
+								Properties: map[string]*genai.Schema{
+									"content": {
+										Type:        "string",
+										Description: "file content",
 									},
 								},
 							},
@@ -141,6 +163,39 @@ func SendMessage(ctx context.Context, chat *genai.Chat, part genai.Part, respons
 								Name: functionCall.Name,
 								Response: map[string]any{
 									"children": result,
+								},
+							},
+						},
+						response,
+					)
+				}
+				if functionCall.Name == "cat-file" {
+					result := ""
+
+					filePath, ok := functionCall.Args["filePath"].(string)
+					if ok {
+						content, err := tool.CatFile(filePath)
+						if err == nil {
+							result = content
+						}
+
+						toolResult := ""
+						toolResult += "## File content " + filePath + "\n"
+						toolResult += result + "\n"
+						toolResult += "## File content\n"
+
+						*response = *response + toolResult
+					}
+
+					SendMessage(
+						ctx,
+						chat,
+						genai.Part{
+							FunctionResponse: &genai.FunctionResponse{
+								ID:   functionCall.ID,
+								Name: functionCall.Name,
+								Response: map[string]any{
+									"content": result,
 								},
 							},
 						},
