@@ -17,13 +17,25 @@ func DefaultConfig(apiKey string) Config {
 	return Config{GEMINI_API_KEY: apiKey}
 }
 
-func CreateGoogle(ctx context.Context, config Config) (*genai.Client, *genai.Chat, error) {
+type GoogleClient struct {
+	context       context.Context
+	cancelRequest context.CancelFunc
+
+	client   *genai.Client
+	chat     *genai.Chat
+	Messages []*genai.Content
+}
+
+func CreateGoogle(config Config) (*GoogleClient, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  config.GEMINI_API_KEY,
 		Backend: genai.BackendGeminiAPI,
 	})
 	if err != nil {
-		return nil, nil, err
+		cancel()
+		return nil, err
 	}
 
 	chat, err := client.Chats.Create(
@@ -109,17 +121,34 @@ func CreateGoogle(ctx context.Context, config Config) (*genai.Client, *genai.Cha
 	)
 
 	if err != nil {
-		return nil, nil, err
+		cancel()
+		return nil, err
 	}
 
-	return client, chat, nil
+	return &GoogleClient{
+		context:       ctx,
+		cancelRequest: cancel,
+
+		client:   client,
+		chat:     chat,
+		Messages: []*genai.Content{},
+	}, nil
 }
 
-func SendMessage(ctx context.Context, chat *genai.Chat, part genai.Part, response *string) {
-	stream := chat.SendMessageStream(
-		ctx,
-		part,
+func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) {
+	var parts []genai.Part
+
+	for _, content := range messages {
+		for _, part := range content.Parts {
+			parts = append(parts, *part)
+		}
+	}
+
+	stream := c.chat.SendMessageStream(
+		c.context,
+		parts...,
 	)
+	text := ""
 	for result, err := range stream {
 		if err != nil {
 			return
@@ -131,8 +160,13 @@ func SendMessage(ctx context.Context, chat *genai.Chat, part genai.Part, respons
 					continue
 				}
 				*response = *response + part.Text
+				text += part.Text
 			}
 			if part.FunctionCall != nil {
+				c.Messages = append(c.Messages, &genai.Content{Role: "assistant", Parts: []*genai.Part{{Text: text}}})
+
+				text = ""
+
 				functionCall := part.FunctionCall
 				if functionCall.Name == "list-directory" {
 					result := []string{}
@@ -154,18 +188,22 @@ func SendMessage(ctx context.Context, chat *genai.Chat, part genai.Part, respons
 						*response = *response + toolResult
 					}
 
-					SendMessage(
-						ctx,
-						chat,
-						genai.Part{
-							FunctionResponse: &genai.FunctionResponse{
-								ID:   functionCall.ID,
-								Name: functionCall.Name,
-								Response: map[string]any{
-									"children": result,
+					messages = append(messages, &genai.Content{
+						Role: "tool",
+						Parts: []*genai.Part{
+							{
+								FunctionResponse: &genai.FunctionResponse{
+									ID:   functionCall.ID,
+									Name: functionCall.Name,
+									Response: map[string]any{
+										"children": result,
+									},
 								},
 							},
-						},
+						}})
+
+					c.SendMessage(
+						messages,
 						response,
 					)
 				}
@@ -187,18 +225,22 @@ func SendMessage(ctx context.Context, chat *genai.Chat, part genai.Part, respons
 						*response = *response + toolResult
 					}
 
-					SendMessage(
-						ctx,
-						chat,
-						genai.Part{
-							FunctionResponse: &genai.FunctionResponse{
-								ID:   functionCall.ID,
-								Name: functionCall.Name,
-								Response: map[string]any{
-									"content": result,
+					messages = append(messages, &genai.Content{
+						Role: "tool",
+						Parts: []*genai.Part{
+							{
+								FunctionResponse: &genai.FunctionResponse{
+									ID:   functionCall.ID,
+									Name: functionCall.Name,
+									Response: map[string]any{
+										"content": result,
+									},
 								},
 							},
-						},
+						}})
+
+					c.SendMessage(
+						messages,
 						response,
 					)
 				}
@@ -206,4 +248,12 @@ func SendMessage(ctx context.Context, chat *genai.Chat, part genai.Part, respons
 		}
 	}
 
+	c.Messages = append(c.Messages, &genai.Content{Role: "assistant", Parts: []*genai.Part{{Text: text}}})
+}
+
+func (c *GoogleClient) CancelRequest() error {
+	if c.cancelRequest != nil {
+		c.cancelRequest()
+	}
+	return nil
 }

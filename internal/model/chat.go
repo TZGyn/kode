@@ -1,12 +1,10 @@
 package model
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/TZGyn/kode/internal/animation"
@@ -29,15 +27,14 @@ const (
 )
 
 type ChatModel struct {
-	anim          tea.Model
-	state         state
-	status        string
-	client        *genai.Client
-	chat          *genai.Chat
-	context       context.Context
-	cancelRequest context.CancelFunc
-	Prompt        string
-	Response      string
+	anim   tea.Model
+	state  state
+	status string
+
+	googleClient *google.GoogleClient
+
+	Prompt   string
+	Response string
 
 	glam         *glamour.TermRenderer
 	glamHeight   int
@@ -68,27 +65,24 @@ func InitialModel(prompt string, config ChatConfig) *ChatModel {
 
 	renderer := lipgloss.NewRenderer(os.Stderr, termenv.WithColorCache(true))
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-
 	googleConfig := google.DefaultConfig(config.GEMINI_API_KEY)
 
-	client, chat, err := google.CreateGoogle(ctx, googleConfig)
+	client, err := google.CreateGoogle(googleConfig)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	return &ChatModel{
-		state:         startState,
-		client:        client,
-		chat:          chat,
-		context:       ctx,
-		cancelRequest: cancel,
-		Prompt:        prompt,
-		status:        "generating",
-		glam:          gr,
-		glamViewport:  vp,
-		renderer:      renderer,
+		state: startState,
+
+		googleClient: client,
+
+		Prompt:       prompt,
+		status:       "generating",
+		glam:         gr,
+		glamViewport: vp,
+		renderer:     renderer,
 	}
 }
 
@@ -107,10 +101,9 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.anim.Init(), func() tea.Msg { return generatingMsg{} })
 	case generatingMsg:
 		go func(model *ChatModel) {
-			google.SendMessage(
-				model.context,
-				model.chat,
-				genai.Part{Text: model.Prompt},
+			model.googleClient.Messages = append(model.googleClient.Messages, &genai.Content{Role: "assistant", Parts: []*genai.Part{{Text: model.Prompt}}})
+			model.googleClient.SendMessage(
+				model.googleClient.Messages,
 				&model.Response,
 			)
 			model.status = "done"
@@ -183,8 +176,8 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ChatModel) quit() tea.Msg {
-	if m.cancelRequest != nil {
-		m.cancelRequest()
+	if m.googleClient != nil {
+		m.googleClient.CancelRequest()
 	}
 	return tea.Quit()
 }
