@@ -2,7 +2,6 @@ package google
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/TZGyn/kode/internal/tool"
@@ -41,82 +40,7 @@ func CreateGoogle(config Config) (*GoogleClient, error) {
 	chat, err := client.Chats.Create(
 		ctx,
 		"gemini-2.0-flash",
-		&genai.GenerateContentConfig{
-			SystemInstruction: &genai.Content{
-				Role: "system",
-				Parts: []*genai.Part{
-					{
-						Text: fmt.Sprintf(`
-							You are a chat assistant
-							Today's Date: %s
-
-							It is a must to generate some text, letting the user knows your thinking process before using a tool.
-							Thus providing better user experience, rather than immediately jump to using the tool and generate a conclusion
-
-							Common Order: Tool, Text
-							Better order you must follow: Text, Tool, Text
-
-							You have been given a tool which will take a directory as input and return its direct children
-							You may call this tool repeatedly until you fulfill the user request
-						`, time.Now().Format("2006-01-02 15:04:05")),
-					},
-				},
-			},
-			Tools: []*genai.Tool{
-				{
-					FunctionDeclarations: []*genai.FunctionDeclaration{
-						{
-							Name:        "list-directory",
-							Description: "Given a directory, return all the children of it",
-							Parameters: &genai.Schema{
-								Type: "object",
-								Properties: map[string]*genai.Schema{
-									"directory": {
-										Type:        "string",
-										Description: "the directory to output, use . for root",
-									},
-								},
-							},
-							Response: &genai.Schema{
-								Type: "object",
-								Properties: map[string]*genai.Schema{
-									"children": {
-										Type:        "array",
-										Description: "children as list",
-										Items: &genai.Schema{
-											Type:        "string",
-											Description: "children, folder or file",
-										},
-									},
-								},
-							},
-						},
-						{
-							Name:        "cat-file",
-							Description: "Given a file path, return all its content as string",
-							Parameters: &genai.Schema{
-								Type: "object",
-								Properties: map[string]*genai.Schema{
-									"filePath": {
-										Type:        "string",
-										Description: "the file path to output relative to root",
-									},
-								},
-							},
-							Response: &genai.Schema{
-								Type: "object",
-								Properties: map[string]*genai.Schema{
-									"content": {
-										Type:        "string",
-										Description: "file content",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+		googleConfig,
 		nil,
 	)
 
@@ -238,6 +162,75 @@ func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) 
 								},
 							},
 						}})
+
+					c.SendMessage(
+						messages,
+						response,
+					)
+				}
+				if functionCall.Name == "create-file" {
+					result := ""
+					path, ok := functionCall.Args["filePath"].(string)
+					if ok {
+						err := tool.CreateFile(path)
+						if err == nil {
+							result = "File Created Successfully"
+						} else {
+							result = err.Error()
+						}
+
+						toolResult := ""
+						toolResult += "## File create\n"
+						toolResult += path + "\n"
+						toolResult += "## File create\n"
+					}
+					messages = append(messages, &genai.Content{
+						Role: "tool",
+						Parts: []*genai.Part{
+							{
+								FunctionResponse: &genai.FunctionResponse{
+									ID:   functionCall.ID,
+									Name: functionCall.Name,
+									Response: map[string]any{
+										"result": result,
+									},
+								},
+							},
+						},
+					})
+
+					c.SendMessage(
+						messages,
+						response,
+					)
+				}
+
+				if functionCall.Name == "apply-patch" {
+					result := ""
+					patch, ok := functionCall.Args["patch"].(string)
+					if ok {
+						output, _ := tool.ApplyPatch(patch)
+						result = output
+
+						toolResult := ""
+						toolResult += "## File patch\n"
+						toolResult += patch + "\n"
+						toolResult += "## File patch\n"
+					}
+					messages = append(messages, &genai.Content{
+						Role: "tool",
+						Parts: []*genai.Part{
+							{
+								FunctionResponse: &genai.FunctionResponse{
+									ID:   functionCall.ID,
+									Name: functionCall.Name,
+									Response: map[string]any{
+										"result": result,
+									},
+								},
+							},
+						},
+					})
 
 					c.SendMessage(
 						messages,
