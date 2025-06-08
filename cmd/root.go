@@ -79,6 +79,8 @@ var rootCmd = &cobra.Command{
 		opts := []tea.ProgramOption{}
 		opts = append(opts, tea.WithOutput(os.Stderr))
 
+		messages := model.ChatMessages{}
+
 		for {
 			var prompt string
 
@@ -104,7 +106,7 @@ var rootCmd = &cobra.Command{
 			color.BgRGB(95, 95, 255).AddRGB(230, 255, 219).Println(" User: ")
 			fmt.Println(out)
 
-			chatModel := model.InitialModel(prompt, c)
+			chatModel := model.InitialModel(prompt, messages, c)
 
 			p := tea.NewProgram(chatModel, opts...)
 			m, err := p.Run()
@@ -125,6 +127,13 @@ var rootCmd = &cobra.Command{
 				fmt.Println(out)
 			} else {
 				fmt.Println("No Response")
+			}
+
+			if len(chatModel.GoogleClient.Messages) > 0 {
+				err = messages.AddGoogleMessages(chatModel.GoogleClient.Messages)
+				if err != nil {
+					fmt.Println("Failed to remember google response")
+				}
 			}
 		}
 		return nil

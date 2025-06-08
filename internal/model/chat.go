@@ -31,7 +31,8 @@ type ChatModel struct {
 	state  state
 	status string
 
-	googleClient *google.GoogleClient
+	GoogleClient *google.GoogleClient
+	messages     ChatMessages
 
 	Prompt   string
 	Response string
@@ -54,7 +55,7 @@ type initMsg struct{}
 type generatingMsg struct{}
 type receivingMsg struct{}
 
-func InitialModel(prompt string, config ChatConfig) *ChatModel {
+func InitialModel(prompt string, messages ChatMessages, config ChatConfig) *ChatModel {
 	gr, _ := glamour.NewTermRenderer(
 		glamour.WithEnvironmentConfig(),
 		glamour.WithAutoStyle(),
@@ -76,7 +77,8 @@ func InitialModel(prompt string, config ChatConfig) *ChatModel {
 	return &ChatModel{
 		state: startState,
 
-		googleClient: client,
+		GoogleClient: client,
+		messages:     messages,
 
 		Prompt:       prompt,
 		status:       "generating",
@@ -101,9 +103,14 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.anim.Init(), func() tea.Msg { return generatingMsg{} })
 	case generatingMsg:
 		go func(model *ChatModel) {
-			model.googleClient.Messages = append(model.googleClient.Messages, &genai.Content{Role: "assistant", Parts: []*genai.Part{{Text: model.Prompt}}})
-			model.googleClient.SendMessage(
-				model.googleClient.Messages,
+			googleMessages, err := model.messages.ConvertToGoogleMessages()
+			if err == nil {
+				model.GoogleClient.Messages = append(model.GoogleClient.Messages, googleMessages...)
+			}
+
+			model.GoogleClient.Messages = append(model.GoogleClient.Messages, &genai.Content{Role: "assistant", Parts: []*genai.Part{{Text: model.Prompt}}})
+			model.GoogleClient.SendMessage(
+				model.GoogleClient.Messages,
 				&model.Response,
 			)
 			model.status = "done"
@@ -176,8 +183,8 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ChatModel) quit() tea.Msg {
-	if m.googleClient != nil {
-		m.googleClient.CancelRequest()
+	if m.GoogleClient != nil {
+		m.GoogleClient.CancelRequest()
 	}
 	return tea.Quit()
 }
