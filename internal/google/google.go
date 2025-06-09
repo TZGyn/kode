@@ -2,6 +2,7 @@ package google
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/TZGyn/kode/internal/tool"
@@ -20,9 +21,12 @@ type GoogleClient struct {
 	context       context.Context
 	cancelRequest context.CancelFunc
 
-	client   *genai.Client
-	chat     *genai.Chat
-	Messages []*genai.Content
+	model string
+
+	client        *genai.Client
+	chat          *genai.Chat
+	Messages      []*genai.Content
+	FunctionCalls []string
 }
 
 func CreateGoogle(config Config) (*GoogleClient, error) {
@@ -53,9 +57,12 @@ func CreateGoogle(config Config) (*GoogleClient, error) {
 		context:       ctx,
 		cancelRequest: cancel,
 
-		client:   client,
-		chat:     chat,
-		Messages: []*genai.Content{},
+		model: "gemini-2.0-flash",
+		chat:  chat,
+
+		client:        client,
+		Messages:      []*genai.Content{},
+		FunctionCalls: []string{},
 	}, nil
 }
 
@@ -75,6 +82,7 @@ func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) 
 	text := ""
 	for result, err := range stream {
 		if err != nil {
+			fmt.Println(err)
 			return
 		}
 
@@ -86,13 +94,12 @@ func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) 
 				*response = *response + part.Text
 				text += part.Text
 			}
-			if part.FunctionCall != nil {
-				c.Messages = append(c.Messages, &genai.Content{Role: "assistant", Parts: []*genai.Part{{Text: text}}})
 
-				text = ""
+			if part.FunctionCall != nil {
+				c.FunctionCalls = append(c.FunctionCalls, part.FunctionCall.Name)
 
 				functionCall := part.FunctionCall
-				if functionCall.Name == "list-directory" {
+				if functionCall.Name == "list_directory" {
 					result := []string{}
 
 					directory, ok := functionCall.Args["directory"].(string)
@@ -125,13 +132,8 @@ func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) 
 								},
 							},
 						}})
-
-					c.SendMessage(
-						messages,
-						response,
-					)
 				}
-				if functionCall.Name == "cat-file" {
+				if functionCall.Name == "cat_file" {
 					result := ""
 
 					filePath, ok := functionCall.Args["filePath"].(string)
@@ -162,13 +164,8 @@ func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) 
 								},
 							},
 						}})
-
-					c.SendMessage(
-						messages,
-						response,
-					)
 				}
-				if functionCall.Name == "create-file" {
+				if functionCall.Name == "create_file" {
 					result := ""
 					path, ok := functionCall.Args["filePath"].(string)
 					if ok {
@@ -183,6 +180,8 @@ func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) 
 						toolResult += "## File create\n"
 						toolResult += path + "\n"
 						toolResult += "## File create\n"
+
+						*response = *response + toolResult
 					}
 					messages = append(messages, &genai.Content{
 						Role: "tool",
@@ -199,13 +198,9 @@ func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) 
 						},
 					})
 
-					c.SendMessage(
-						messages,
-						response,
-					)
 				}
 
-				if functionCall.Name == "apply-patch" {
+				if functionCall.Name == "apply_patch" {
 					result := ""
 					patch, ok := functionCall.Args["patch"].(string)
 					if ok {
@@ -216,6 +211,42 @@ func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) 
 						toolResult += "## File patch\n"
 						toolResult += patch + "\n"
 						toolResult += "## File patch\n"
+
+						*response = *response + toolResult
+					}
+					messages = append(messages, &genai.Content{
+						Role: "tool",
+						Parts: []*genai.Part{
+							{
+								FunctionResponse: &genai.FunctionResponse{
+									ID:   functionCall.ID,
+									Name: functionCall.Name,
+									Response: map[string]any{
+										"result": result,
+									},
+								},
+							},
+						},
+					})
+				}
+
+				if functionCall.Name == "update_file" {
+					result := ""
+					path, pathOk := functionCall.Args["path"].(string)
+					new_content, ok := functionCall.Args["new_content"].(string)
+					if ok && pathOk {
+						output, err := tool.UpdateFile(path, new_content)
+						result = output
+						if err != nil {
+							result = err.Error()
+						}
+
+						toolResult := ""
+						toolResult += "## File update " + path + "\n"
+						toolResult += new_content + "\n"
+						toolResult += "## File update\n"
+
+						*response = *response + toolResult
 					}
 					messages = append(messages, &genai.Content{
 						Role: "tool",
@@ -232,16 +263,22 @@ func (c *GoogleClient) SendMessage(messages []*genai.Content, response *string) 
 						},
 					})
 
-					c.SendMessage(
-						messages,
-						response,
-					)
 				}
 			}
 		}
+
 	}
 
 	c.Messages = append(c.Messages, &genai.Content{Role: "assistant", Parts: []*genai.Part{{Text: text}}})
+
+	if len(c.FunctionCalls) > 0 {
+		c.SendMessage(
+			messages,
+			response,
+		)
+	}
+	c.FunctionCalls = []string{}
+
 }
 
 func (c *GoogleClient) CancelRequest() error {

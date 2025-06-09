@@ -199,10 +199,10 @@ func (m *ChatModel) View() string {
 		return m.anim.View()
 	case responseState:
 		if m.viewportNeeded() {
-			return m.glamViewport.View()
+			return m.glamViewport.View() + "\n" + strings.Join(m.GoogleClient.FunctionCalls, " ")
 		}
 
-		return m.glamOutput
+		return m.glamOutput + "\n" + strings.Join(m.GoogleClient.FunctionCalls, " ")
 	case doneState:
 		return ""
 	}

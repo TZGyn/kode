@@ -1,6 +1,10 @@
 package model
 
-import "google.golang.org/genai"
+import (
+	"fmt"
+
+	"google.golang.org/genai"
+)
 
 type ChatMessages []*ChatMessage
 
@@ -100,4 +104,34 @@ func (c *ChatMessages) AddGoogleMessages(messages []*genai.Content) error {
 	}
 
 	return nil
+}
+
+func (c *ChatMessages) Print() {
+	result := ""
+	for _, message := range *c {
+		result += "Role: " + message.Role + "\n"
+		for _, part := range message.Parts {
+			result += "Parts:"
+			result += "\tType: " + part.Type + "\n"
+			result += "\tReasoning: " + part.Reasoning + "\n"
+			result += "\tText: " + part.Text + "\n"
+			result += "\tToolCallID: " + part.ToolCallID + "\n"
+			result += "\tToolCallName: " + part.ToolCallName + "\n"
+			if part.ToolCallArgs != nil {
+				result += "\tToolCallArgs:\n"
+				for key, value := range part.ToolCallArgs {
+					result += "\t\t" + key + ":" + fmt.Sprintf("%+v", value)
+				}
+			}
+			if part.ToolCallResult != nil {
+				result += "\tToolCallResult:\n"
+				for key, value := range part.ToolCallResult {
+					result += "\t\t" + key + ":" + fmt.Sprintf("%+v", value)
+				}
+			}
+			result += "\n"
+		}
+	}
+
+	fmt.Println("Result", result)
 }

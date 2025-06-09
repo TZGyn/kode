@@ -13,22 +13,16 @@ var googleConfig = &genai.GenerateContentConfig{
 		Parts: []*genai.Part{
 			{
 				Text: fmt.Sprintf(`
-							You are a chat assistant
+							You are a cli code assistant named kode
 							Today's Date: %s
 
 							It is a must to generate some text, letting the user knows your thinking process before using a tool.
 							Thus providing better user experience, rather than immediately jump to using the tool and generate a conclusion
 
-
 							Common Order: Tool, Text
 							Better order you must follow: Text, Tool, Text
 
-							You have been given a tool which will take a directory as input and return its direct children
-							You may call this tool repeatedly until you fulfill the user request
-
-							Use "apply-patch" tool to edit files, make sure to use valid patch file as input: 
-							Example: *** Begin Patch\n*** Update File: path/to/file.py\n@@ def example():\n-  pass\n+  return 123\n*** End Patch
-
+							You have been given tools to fulfill user request, make sure to keep using them until the user request is fulfilled
 							Always check the progress to make sure you dont infinite loop
 						`, time.Now().Format("2006-01-02 15:04:05")),
 			},
@@ -41,7 +35,7 @@ var tools = []*genai.Tool{
 	{
 		FunctionDeclarations: []*genai.FunctionDeclaration{
 			{
-				Name:        "list-directory",
+				Name:        "list_directory",
 				Description: "Given a directory, return all the children of it",
 				Parameters: &genai.Schema{
 					Type: "object",
@@ -67,7 +61,7 @@ var tools = []*genai.Tool{
 				},
 			},
 			{
-				Name:        "cat-file",
+				Name:        "cat_file",
 				Description: "Given a file path, return all its content as string",
 				Parameters: &genai.Schema{
 					Type: "object",
@@ -89,7 +83,7 @@ var tools = []*genai.Tool{
 				},
 			},
 			{
-				Name:        "create-file",
+				Name:        "create_file",
 				Description: "Given a file path, create a empty file in the path",
 				Parameters: &genai.Schema{
 					Type: "object",
@@ -110,15 +104,41 @@ var tools = []*genai.Tool{
 					},
 				},
 			},
+			// {
+			// 	Name:        "apply_patch",
+			// 	Description: "Given a patch file content, apply the patch",
+			// 	Parameters: &genai.Schema{
+			// 		Type: "object",
+			// 		Properties: map[string]*genai.Schema{
+			// 			"patch": {
+			// 				Type:        "string",
+			// 				Description: "the patch file content",
+			// 			},
+			// 		},
+			// 	},
+			// 	Response: &genai.Schema{
+			// 		Type: "object",
+			// 		Properties: map[string]*genai.Schema{
+			// 			"result": {
+			// 				Type:        "string",
+			// 				Description: "file patch result, either file patch successfully or an error message",
+			// 			},
+			// 		},
+			// 	},
+			// },
 			{
-				Name:        "apply-patch",
-				Description: "Given a patch file content, apply the patch",
+				Name:        "update_file",
+				Description: "Update file, given the complete new file content",
 				Parameters: &genai.Schema{
 					Type: "object",
 					Properties: map[string]*genai.Schema{
-						"patch": {
+						"path": {
 							Type:        "string",
-							Description: "the patch file content",
+							Description: "Path of the file",
+						},
+						"new_content": {
+							Type:        "string",
+							Description: "New file content",
 						},
 					},
 				},
@@ -127,7 +147,7 @@ var tools = []*genai.Tool{
 					Properties: map[string]*genai.Schema{
 						"result": {
 							Type:        "string",
-							Description: "file patch result, either file patch successfully or an error message",
+							Description: "file update result, either file updated successfully or an error message",
 						},
 					},
 				},

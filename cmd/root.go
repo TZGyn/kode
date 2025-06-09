@@ -130,11 +130,13 @@ var rootCmd = &cobra.Command{
 			}
 
 			if len(chatModel.GoogleClient.Messages) > 0 {
+				messages = model.ChatMessages{}
 				err = messages.AddGoogleMessages(chatModel.GoogleClient.Messages)
 				if err != nil {
 					fmt.Println("Failed to remember google response")
 				}
 			}
+			messages.Print()
 		}
 		return nil
 	},

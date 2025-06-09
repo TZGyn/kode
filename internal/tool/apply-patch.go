@@ -10,5 +10,5 @@ func ApplyPatch(patch string) (string, error) {
 		return string(stdout), err
 	}
 
-	return string(stdout), nil
+	return "File patch applied", nil
 }
