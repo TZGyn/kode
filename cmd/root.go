@@ -81,12 +81,46 @@ var rootCmd = &cobra.Command{
 
 		messages := model.ChatMessages{}
 
+		providerOpts := make([]huh.Option[string], 0, len(providers))
+		modelOpts := map[string][]huh.Option[string]{}
+
+		for _, provider := range providers {
+			providerOpts = append(providerOpts, huh.NewOption(provider, provider))
+			for _, model := range models[provider] {
+				modelOpts[provider] = append(modelOpts[provider], huh.NewOption(model, model))
+			}
+		}
+
+		err = huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Choose the Provider:").
+					Options(providerOpts...).
+					Value(&c.Provider),
+				huh.NewSelect[string]().
+					TitleFunc(func() string {
+						return fmt.Sprintf("Choose the model for '%s':", c.Provider)
+					}, &c.Provider).
+					OptionsFunc(func() []huh.Option[string] {
+						return modelOpts[c.Provider]
+					}, &c.Provider).
+					Value(&c.Model),
+			),
+		).Run()
+
+		if err != nil {
+			return err
+		}
+
 		for {
 			var prompt string
 
-			promptForm :=
-				huh.NewText().Title("Enter a prompt:").
-					Value(&prompt)
+			promptForm := huh.NewForm(
+				huh.NewGroup(
+					huh.NewText().Title("Enter a prompt:").
+						Value(&prompt),
+				),
+			)
 
 			err = promptForm.Run()
 

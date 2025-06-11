@@ -33,7 +33,8 @@ type ChatModel struct {
 	state  state
 	status string
 
-	model string
+	provider string
+	model    string
 
 	GoogleClient *google.GoogleClient
 	OpenAIClient *openAI.OpenAIClient
@@ -53,6 +54,7 @@ type ChatModel struct {
 }
 
 type ChatConfig struct {
+	Provider       string `json:"provider"`
 	Model          string `json:"model"`
 	GEMINI_API_KEY string `json:"GEMINI_API_KEY"`
 	OPENAI_API_KEY string `json:"OPENAI_API_KEY"`
@@ -73,7 +75,7 @@ func InitialModel(prompt string, messages ChatMessages, config ChatConfig) *Chat
 
 	renderer := lipgloss.NewRenderer(os.Stderr, termenv.WithColorCache(true))
 
-	googleConfig := google.DefaultConfig(config.GEMINI_API_KEY)
+	googleConfig := google.DefaultConfig(config.GEMINI_API_KEY, config.Model)
 
 	client, err := google.CreateGoogle(googleConfig)
 
@@ -81,7 +83,7 @@ func InitialModel(prompt string, messages ChatMessages, config ChatConfig) *Chat
 		log.Fatal(err)
 	}
 
-	openAIConfig := openAI.DefaultConfig(config.OPENAI_API_KEY)
+	openAIConfig := openAI.DefaultConfig(config.OPENAI_API_KEY, config.Model)
 	openAIClient, err := openAI.Create(openAIConfig)
 	if err != nil {
 		log.Fatal(err)
@@ -90,7 +92,8 @@ func InitialModel(prompt string, messages ChatMessages, config ChatConfig) *Chat
 	return &ChatModel{
 		state: startState,
 
-		model: config.Model,
+		provider: config.Provider,
+		model:    config.Model,
 
 		GoogleClient: client,
 		OpenAIClient: openAIClient,
@@ -119,7 +122,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.anim.Init(), func() tea.Msg { return generatingMsg{} })
 	case generatingMsg:
 		go func(model *ChatModel) {
-			if model.model == "google" {
+			if model.provider == "google" {
 				googleMessages, err := model.messages.ConvertToGoogleMessages()
 				if err == nil {
 					model.GoogleClient.Messages = append(model.GoogleClient.Messages, googleMessages...)
@@ -134,7 +137,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					model.GoogleClient.Messages,
 					&model.Response,
 				)
-			} else if model.model == "openai" {
+			} else if model.provider == "openai" {
 				openaiMessages, err := model.messages.ConvertToOpenAIMessages()
 				if err == nil {
 					model.OpenAIClient.Messages = append(model.OpenAIClient.Messages, openaiMessages...)

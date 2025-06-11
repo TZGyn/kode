@@ -13,6 +13,7 @@ import (
 
 type Config struct {
 	OPENAI_API_KEY string `json:"OPENAI_API_KEY"`
+	Model          string `json:"model"`
 }
 
 type OpenAIClient struct {
@@ -20,12 +21,16 @@ type OpenAIClient struct {
 	cancelRequest context.CancelFunc
 
 	client openai.Client
+	model  string
 
 	Messages []openai.ChatCompletionMessageParamUnion
 }
 
-func DefaultConfig(apiKey string) Config {
-	return Config{OPENAI_API_KEY: apiKey}
+func DefaultConfig(apiKey string, model string) Config {
+	return Config{
+		OPENAI_API_KEY: apiKey,
+		Model:          model,
+	}
 }
 
 func Create(config Config) (*OpenAIClient, error) {
@@ -38,6 +43,8 @@ func Create(config Config) (*OpenAIClient, error) {
 	return &OpenAIClient{
 		context:       ctx,
 		cancelRequest: cancel,
+
+		model: config.Model,
 
 		client: client,
 	}, nil
@@ -66,7 +73,7 @@ func (c *OpenAIClient) SendMessage(messages []openai.ChatCompletionMessageParamU
 	params := openai.ChatCompletionNewParams{
 		Messages: withSystemMessage,
 		Tools:    tools,
-		Model:    openai.ChatModelGPT4_1Nano,
+		Model:    c.model,
 	}
 
 	completion, err := c.client.Chat.Completions.New(c.context, params)

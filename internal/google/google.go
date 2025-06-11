@@ -10,10 +10,14 @@ import (
 
 type Config struct {
 	GEMINI_API_KEY string `json:"GEMINI_API_KEY"`
+	Model          string `json:"model"`
 }
 
-func DefaultConfig(apiKey string) Config {
-	return Config{GEMINI_API_KEY: apiKey}
+func DefaultConfig(apiKey string, model string) Config {
+	return Config{
+		GEMINI_API_KEY: apiKey,
+		Model:          model,
+	}
 }
 
 type GoogleClient struct {
@@ -43,7 +47,7 @@ func CreateGoogle(config Config) (*GoogleClient, error) {
 		context:       ctx,
 		cancelRequest: cancel,
 
-		model: "gemini-2.0-flash",
+		model: config.Model,
 
 		client:        client,
 		Messages:      []*genai.Content{},
