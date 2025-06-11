@@ -147,12 +147,8 @@ func (c *ChatMessages) AddOpenAIMessages(messages []openai.ChatCompletionMessage
 			})
 		}
 		if message.OfTool != nil {
-			data, err := message.OfTool.Content.OfString.MarshalJSON()
-			if err != nil {
-				continue
-			}
-			var result map[string]any
-			json.Unmarshal(data, &result)
+			result := make(map[string]any)
+			result["result"] = message.OfTool.Content.OfString.String()
 
 			parts = append(parts, &ChatPart{
 				Type:           "tool-result",

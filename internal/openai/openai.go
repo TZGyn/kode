@@ -91,7 +91,7 @@ func (c *OpenAIClient) SendMessage(messages []openai.ChatCompletionMessageParamU
 		if err != nil {
 			continue
 		}
-		params.Messages = append(params.Messages, openai.ToolMessage(fmt.Sprintf("%v", result), toolCall.ID))
+		params.Messages = append(params.Messages, openai.ToolMessage(result, toolCall.ID))
 	}
 
 	return c.SendMessage(params.Messages, response)

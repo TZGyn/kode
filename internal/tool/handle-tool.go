@@ -2,9 +2,10 @@ package tool
 
 import (
 	"errors"
+	"strings"
 )
 
-func HandleTool(toolName string, args map[string]any, response *string) (any, error) {
+func HandleTool(toolName string, args map[string]any, response *string) (string, error) {
 	if toolName == "list_directory" {
 		result := []string{}
 
@@ -24,7 +25,7 @@ func HandleTool(toolName string, args map[string]any, response *string) (any, er
 
 			*response = *response + toolResult
 		}
-		return result, nil
+		return strings.Join(result, ","), nil
 	}
 	if toolName == "cat_file" {
 		result := ""
@@ -106,5 +107,5 @@ func HandleTool(toolName string, args map[string]any, response *string) (any, er
 		return result, nil
 	}
 
-	return nil, errors.New("Invalid Tool")
+	return "", errors.New("Invalid Tool")
 }

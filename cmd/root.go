@@ -143,7 +143,6 @@ var rootCmd = &cobra.Command{
 					fmt.Println("Failed to remember openai response")
 				}
 			}
-			messages.Print()
 		}
 		return nil
 	},

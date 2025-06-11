@@ -53,7 +53,7 @@ type ChatModel struct {
 }
 
 type ChatConfig struct {
-	Model          string `json:model`
+	Model          string `json:"model"`
 	GEMINI_API_KEY string `json:"GEMINI_API_KEY"`
 	OPENAI_API_KEY string `json:"OPENAI_API_KEY"`
 }
