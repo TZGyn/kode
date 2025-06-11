@@ -204,7 +204,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if m.state == requestState {
+	if m.state == requestState || m.state == responseState {
 		var cmd tea.Cmd
 		m.anim, cmd = m.anim.Update(msg)
 		cmds = append(cmds, cmd)
@@ -236,10 +236,10 @@ func (m *ChatModel) View() string {
 		return m.anim.View()
 	case responseState:
 		if m.viewportNeeded() {
-			return m.glamViewport.View() + "\n" + strings.Join(m.GoogleClient.FunctionCalls, " ")
+			return m.glamViewport.View() + "\n\n" + m.anim.View()
 		}
 
-		return m.glamOutput + "\n" + strings.Join(m.GoogleClient.FunctionCalls, " ")
+		return m.glamOutput + "\n\n" + m.anim.View()
 	case doneState:
 		return ""
 	}
