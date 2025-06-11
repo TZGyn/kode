@@ -96,3 +96,10 @@ func (c *OpenAIClient) SendMessage(messages []openai.ChatCompletionMessageParamU
 
 	return c.SendMessage(params.Messages, response)
 }
+
+func (c *OpenAIClient) CancelRequest() error {
+	if c.cancelRequest != nil {
+		c.cancelRequest()
+	}
+	return nil
+}

@@ -25,7 +25,7 @@ func HandleTool(toolName string, args map[string]any, response *string) (string,
 
 			*response = *response + toolResult
 		}
-		return strings.Join(result, ","), nil
+		return strings.Join(result, "\n"), nil
 	}
 	if toolName == "cat_file" {
 		result := ""
@@ -99,7 +99,9 @@ func HandleTool(toolName string, args map[string]any, response *string) (string,
 
 			toolResult := ""
 			toolResult += "## File update " + path + "\n"
+			toolResult += "```\n"
 			toolResult += new_content + "\n"
+			toolResult += "```\n"
 			toolResult += "## File update\n"
 
 			*response = *response + toolResult

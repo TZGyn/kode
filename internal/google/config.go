@@ -49,13 +49,13 @@ var tools = []*genai.Tool{
 				Response: &genai.Schema{
 					Type: "object",
 					Properties: map[string]*genai.Schema{
-						"children": {
-							Type:        "array",
+						"result": {
+							Type:        "string",
 							Description: "children as list",
-							Items: &genai.Schema{
-								Type:        "string",
-								Description: "children, folder or file",
-							},
+							// Items: &genai.Schema{
+							// 	Type:        "string",
+							// 	Description: "children, folder or file",
+							// },
 						},
 					},
 				},
@@ -75,7 +75,7 @@ var tools = []*genai.Tool{
 				Response: &genai.Schema{
 					Type: "object",
 					Properties: map[string]*genai.Schema{
-						"content": {
+						"result": {
 							Type:        "string",
 							Description: "file content",
 						},
