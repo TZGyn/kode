@@ -1,8 +1,11 @@
 package model
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 
+	"github.com/openai/openai-go"
 	"google.golang.org/genai"
 )
 
@@ -106,6 +109,84 @@ func (c *ChatMessages) AddGoogleMessages(messages []*genai.Content) error {
 	return nil
 }
 
+func createKeyValuePairs(m map[string]any) string {
+	b := new(bytes.Buffer)
+	for key, value := range m {
+		fmt.Fprintf(b, "%s=\"%s\"\n", key, value)
+	}
+	return b.String()
+}
+
+func (c *ChatMessages) ConvertToOpenAIMessages() ([]openai.ChatCompletionMessageParamUnion, error) {
+	openAIMessages := []openai.ChatCompletionMessageParamUnion{}
+
+	for _, content := range *c {
+
+		for _, part := range content.Parts {
+			if part.Type == "text" {
+				openAIMessages = append(openAIMessages, openai.UserMessage(part.Text))
+			}
+			if part.Type == "tool-call" {
+			}
+			if part.Type == "tool-result" {
+				openAIMessages = append(openAIMessages, openai.ToolMessage(createKeyValuePairs(part.ToolCallResult), part.ToolCallID))
+			}
+		}
+	}
+
+	return openAIMessages, nil
+}
+
+func (c *ChatMessages) AddOpenAIMessages(messages []openai.ChatCompletionMessageParamUnion) error {
+	for _, message := range messages {
+		parts := []*ChatPart{}
+		if message.OfUser != nil {
+			parts = append(parts, &ChatPart{
+				Type: "text",
+				Text: message.OfUser.Content.OfString.String(),
+			})
+		}
+		if message.OfTool != nil {
+			data, err := message.OfTool.Content.OfString.MarshalJSON()
+			if err != nil {
+				continue
+			}
+			var result map[string]any
+			json.Unmarshal(data, &result)
+
+			parts = append(parts, &ChatPart{
+				Type:           "tool-result",
+				ToolCallID:     message.OfTool.ToolCallID,
+				ToolCallResult: result,
+			})
+		}
+		if message.OfAssistant != nil {
+			parts = append(parts, &ChatPart{
+				Type: "text",
+				Text: message.OfAssistant.Content.OfString.String(),
+			})
+			toolCalls := message.OfAssistant.ToolCalls
+			if len(toolCalls) > 0 {
+
+				for _, toolCall := range toolCalls {
+					var args map[string]any
+					json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
+
+					parts = append(parts, &ChatPart{
+						Type:         "tool-call",
+						ToolCallID:   toolCall.ID,
+						ToolCallName: toolCall.Function.Name,
+						ToolCallArgs: args,
+					})
+				}
+			}
+		}
+
+		*c = append(*c, &ChatMessage{Role: *message.GetRole(), Parts: parts})
+	}
+	return nil
+}
+
 func (c *ChatMessages) Print() {
 	result := ""
 	for _, message := range *c {
@@ -117,16 +198,16 @@ func (c *ChatMessages) Print() {
 			result += "\tText: " + part.Text + "\n"
 			result += "\tToolCallID: " + part.ToolCallID + "\n"
 			result += "\tToolCallName: " + part.ToolCallName + "\n"
-			if part.ToolCallArgs != nil {
+			if len(part.ToolCallArgs) != 0 {
 				result += "\tToolCallArgs:\n"
 				for key, value := range part.ToolCallArgs {
-					result += "\t\t" + key + ":" + fmt.Sprintf("%+v", value)
+					result += "\t\t" + key + ":" + fmt.Sprintf(" %v\n", value)
 				}
 			}
-			if part.ToolCallResult != nil {
+			if len(part.ToolCallResult) != 0 {
 				result += "\tToolCallResult:\n"
 				for key, value := range part.ToolCallResult {
-					result += "\t\t" + key + ":" + fmt.Sprintf("%+v", value)
+					result += "\t\t" + key + ":" + fmt.Sprintf(" %v\n", value)
 				}
 			}
 			result += "\n"

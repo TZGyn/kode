@@ -9,11 +9,13 @@ import (
 
 	"github.com/TZGyn/kode/internal/animation"
 	"github.com/TZGyn/kode/internal/google"
+	openAI "github.com/TZGyn/kode/internal/openai"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+	"github.com/openai/openai-go"
 	"google.golang.org/genai"
 )
 
@@ -31,7 +33,10 @@ type ChatModel struct {
 	state  state
 	status string
 
+	model string
+
 	GoogleClient *google.GoogleClient
+	OpenAIClient *openAI.OpenAIClient
 	messages     ChatMessages
 
 	Prompt   string
@@ -48,7 +53,9 @@ type ChatModel struct {
 }
 
 type ChatConfig struct {
+	Model          string `json:model`
 	GEMINI_API_KEY string `json:"GEMINI_API_KEY"`
+	OPENAI_API_KEY string `json:"OPENAI_API_KEY"`
 }
 
 type initMsg struct{}
@@ -74,10 +81,19 @@ func InitialModel(prompt string, messages ChatMessages, config ChatConfig) *Chat
 		log.Fatal(err)
 	}
 
+	openAIConfig := openAI.DefaultConfig(config.OPENAI_API_KEY)
+	openAIClient, err := openAI.Create(openAIConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &ChatModel{
 		state: startState,
 
+		model: config.Model,
+
 		GoogleClient: client,
+		OpenAIClient: openAIClient,
 		messages:     messages,
 
 		Prompt:       prompt,
@@ -103,16 +119,37 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.anim.Init(), func() tea.Msg { return generatingMsg{} })
 	case generatingMsg:
 		go func(model *ChatModel) {
-			googleMessages, err := model.messages.ConvertToGoogleMessages()
-			if err == nil {
-				model.GoogleClient.Messages = append(model.GoogleClient.Messages, googleMessages...)
-			}
+			if model.model == "google" {
+				googleMessages, err := model.messages.ConvertToGoogleMessages()
+				if err == nil {
+					model.GoogleClient.Messages = append(model.GoogleClient.Messages, googleMessages...)
+				}
 
-			model.GoogleClient.Messages = append(model.GoogleClient.Messages, &genai.Content{Role: "assistant", Parts: []*genai.Part{{Text: model.Prompt}}})
-			model.GoogleClient.SendMessage(
-				model.GoogleClient.Messages,
-				&model.Response,
-			)
+				model.GoogleClient.Messages = append(model.GoogleClient.Messages, &genai.Content{
+					Role:  "user",
+					Parts: []*genai.Part{{Text: model.Prompt}},
+				})
+
+				model.GoogleClient.SendMessage(
+					model.GoogleClient.Messages,
+					&model.Response,
+				)
+			} else if model.model == "openai" {
+				openaiMessages, err := model.messages.ConvertToOpenAIMessages()
+				if err == nil {
+					model.OpenAIClient.Messages = append(model.OpenAIClient.Messages, openaiMessages...)
+				}
+
+				model.OpenAIClient.Messages = append(
+					model.OpenAIClient.Messages,
+					openai.UserMessage(model.Prompt),
+				)
+
+				model.OpenAIClient.SendMessage(
+					model.OpenAIClient.Messages,
+					&model.Response,
+				)
+			}
 			model.status = "done"
 		}(m)
 		cmds = append(cmds, func() tea.Msg { return receivingMsg{} })

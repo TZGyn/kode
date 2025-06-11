@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var c model.ChatConfig
 var rootCmd = &cobra.Command{
 	Use:           "kode",
 	Short:         "CLI AI Assistant",
@@ -41,7 +42,6 @@ var rootCmd = &cobra.Command{
 			return errors.New("invalid git repo")
 		}
 
-		var c model.ChatConfig
 		configFilePath, err := xdg.ConfigFile(filepath.Join("kode", "kode.json"))
 		if err != nil {
 			return err
@@ -136,6 +136,13 @@ var rootCmd = &cobra.Command{
 					fmt.Println("Failed to remember google response")
 				}
 			}
+			if len(chatModel.OpenAIClient.Messages) > 0 {
+				messages = model.ChatMessages{}
+				err = messages.AddOpenAIMessages(chatModel.OpenAIClient.Messages)
+				if err != nil {
+					fmt.Println("Failed to remember openai response")
+				}
+			}
 			messages.Print()
 		}
 		return nil
@@ -162,4 +169,5 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.Flags().StringVarP(&c.Model, "model", "m", c.Model, "Change Model")
 }
