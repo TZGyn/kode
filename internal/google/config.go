@@ -104,28 +104,6 @@ var tools = []*genai.Tool{
 					},
 				},
 			},
-			// {
-			// 	Name:        "apply_patch",
-			// 	Description: "Given a patch file content, apply the patch",
-			// 	Parameters: &genai.Schema{
-			// 		Type: "object",
-			// 		Properties: map[string]*genai.Schema{
-			// 			"patch": {
-			// 				Type:        "string",
-			// 				Description: "the patch file content",
-			// 			},
-			// 		},
-			// 	},
-			// 	Response: &genai.Schema{
-			// 		Type: "object",
-			// 		Properties: map[string]*genai.Schema{
-			// 			"result": {
-			// 				Type:        "string",
-			// 				Description: "file patch result, either file patch successfully or an error message",
-			// 			},
-			// 		},
-			// 	},
-			// },
 			{
 				Name:        "update_file",
 				Description: "Update file, given the complete new file content",

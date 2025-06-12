@@ -2,7 +2,10 @@ package tool
 
 import (
 	"errors"
+	"os"
 	"strings"
+
+	"github.com/aymanbagabas/go-udiff"
 )
 
 func HandleTool(toolName string, args map[string]any, response *string) (string, error) {
@@ -69,38 +72,32 @@ func HandleTool(toolName string, args map[string]any, response *string) (string,
 		return result, nil
 	}
 
-	if toolName == "apply_patch" {
-		result := ""
-		patch, ok := args["patch"].(string)
-		if ok {
-			output, _ := ApplyPatch(patch)
-			result = output
-
-			toolResult := ""
-			toolResult += "## File patch\n"
-			toolResult += patch + "\n"
-			toolResult += "## File patch\n"
-
-			*response = *response + toolResult
-		}
-		return result, nil
-	}
-
 	if toolName == "update_file" {
 		result := ""
 		path, pathOk := args["path"].(string)
 		new_content, ok := args["new_content"].(string)
 		if ok && pathOk {
+			file, err := os.ReadFile("./" + path)
+			if err != nil {
+				result = err.Error()
+				return result, err
+			}
+
 			output, err := UpdateFile(path, new_content)
 			result = output
 			if err != nil {
 				result = err.Error()
+				return result, err
 			}
 
+			edits := udiff.Strings(string(file), new_content)
+
+			unified, _ := udiff.ToUnified("a/"+path, "b/"+path, string(file), edits, 8)
+
 			toolResult := ""
-			toolResult += "## File update " + path + "\n"
-			toolResult += "```\n"
-			toolResult += new_content + "\n"
+			toolResult += "## File update\n"
+			toolResult += "```diff\n"
+			toolResult += unified + "\n"
 			toolResult += "```\n"
 			toolResult += "## File update\n"
 
@@ -109,5 +106,5 @@ func HandleTool(toolName string, args map[string]any, response *string) (string,
 		return result, nil
 	}
 
-	return "", errors.New("Invalid Tool")
+	return "", errors.New("invalid tool")
 }
