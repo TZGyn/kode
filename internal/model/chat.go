@@ -8,9 +8,9 @@ import (
 	"unicode"
 
 	"github.com/TZGyn/kode/internal/animation"
-	"github.com/TZGyn/kode/internal/google"
 	"github.com/TZGyn/kode/internal/message"
-	openAI "github.com/TZGyn/kode/internal/openai"
+	"github.com/TZGyn/kode/internal/provider/google"
+	openAI "github.com/TZGyn/kode/internal/provider/openai"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
