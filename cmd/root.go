@@ -4,26 +4,22 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"github.com/TZGyn/kode/internal/config"
 	"github.com/TZGyn/kode/internal/message"
 	"github.com/TZGyn/kode/internal/model"
 
-	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
-	"github.com/adrg/xdg"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	huh "github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
 
-var c model.ChatConfig
 var rootCmd = &cobra.Command{
 	Use:           "kode",
 	Short:         "CLI AI Assistant",
@@ -42,40 +38,11 @@ var rootCmd = &cobra.Command{
 			return errors.New("invalid git repo")
 		}
 
-		configFilePath, err := xdg.ConfigFile(filepath.Join("kode", "kode.json"))
+		c, err := config.New()
 		if err != nil {
-			return err
+			return nil
 		}
 
-		dir := filepath.Dir(configFilePath)
-		if err = os.MkdirAll(dir, 0o700); err != nil {
-			return err
-		}
-
-		if _, err := os.Stat(configFilePath); errors.Is(err, os.ErrNotExist) {
-
-			f, err := os.Create(configFilePath)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer f.Close()
-			defaultConfig, _ := json.MarshalIndent(&c, "", "\t")
-			_, err = f.WriteString(string(defaultConfig))
-			if err != nil {
-				return err
-			}
-		} else if err != nil {
-			return err
-		}
-
-		content, err := os.ReadFile(configFilePath)
-		if err != nil {
-			return err
-		}
-
-		if err := json.Unmarshal(content, &c); err != nil {
-			return err
-		}
 		opts := []tea.ProgramOption{}
 		opts = append(opts, tea.WithOutput(os.Stderr))
 
@@ -91,25 +58,32 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		err = huh.NewForm(
-			huh.NewGroup(
-				huh.NewSelect[string]().
-					Title("Choose the Provider:").
-					Options(providerOpts...).
-					Value(&c.Provider),
-				huh.NewSelect[string]().
-					TitleFunc(func() string {
-						return fmt.Sprintf("Choose the model for '%s':", c.Provider)
-					}, &c.Provider).
-					OptionsFunc(func() []huh.Option[string] {
-						return modelOpts[c.Provider]
-					}, &c.Provider).
-					Value(&c.Model),
-			),
-		).Run()
+		if c.DEFAULT_MODEL == "" || c.DEFAULT_PROVIDER == "" {
+			err = huh.NewForm(
+				huh.NewGroup(
+					huh.NewSelect[string]().
+						Title("Choose the Provider:").
+						Options(providerOpts...).
+						Value(&c.DEFAULT_PROVIDER),
+					huh.NewSelect[string]().
+						TitleFunc(func() string {
+							return fmt.Sprintf("Choose the model for '%s':", c.DEFAULT_PROVIDER)
+						}, &c.DEFAULT_PROVIDER).
+						OptionsFunc(func() []huh.Option[string] {
+							return modelOpts[c.DEFAULT_PROVIDER]
+						}, &c.DEFAULT_PROVIDER).
+						Value(&c.DEFAULT_MODEL),
+				),
+			).Run()
 
-		if err != nil {
-			return err
+			if err != nil {
+				return err
+			}
+
+			err = c.SaveConfig()
+			if err != nil {
+				return err
+			}
 		}
 
 		for {
@@ -118,7 +92,7 @@ var rootCmd = &cobra.Command{
 			promptForm := huh.NewForm(
 				huh.NewGroup(
 					huh.NewText().Title("Enter a prompt:").
-						Value(&prompt),
+						Value(&prompt).Description("/model to update model"),
 				),
 			)
 
@@ -130,6 +104,35 @@ var rootCmd = &cobra.Command{
 				return errors.New("prompt failed")
 			}
 
+			if prompt == "/model" {
+				err = huh.NewForm(
+					huh.NewGroup(
+						huh.NewSelect[string]().
+							Title("Choose the Provider:").
+							Options(providerOpts...).
+							Value(&c.DEFAULT_PROVIDER),
+						huh.NewSelect[string]().
+							TitleFunc(func() string {
+								return fmt.Sprintf("Choose the model for '%s':", c.DEFAULT_PROVIDER)
+							}, &c.DEFAULT_PROVIDER).
+							OptionsFunc(func() []huh.Option[string] {
+								return modelOpts[c.DEFAULT_PROVIDER]
+							}, &c.DEFAULT_PROVIDER).
+							Value(&c.DEFAULT_MODEL),
+					),
+				).Run()
+
+				if err != nil {
+					return err
+				}
+
+				err = c.SaveConfig()
+				if err != nil {
+					return err
+				}
+				continue
+			}
+
 			out, err := glamour.Render(prompt, "auto")
 			if err != nil {
 				fmt.Println(err)
@@ -138,7 +141,12 @@ var rootCmd = &cobra.Command{
 
 			fmt.Println(message.UserStyle.Render(out))
 
-			chatModel := model.InitialModel(prompt, messages, c)
+			chatModel := model.InitialModel(prompt, messages, model.ChatConfig{
+				Provider:       c.DEFAULT_PROVIDER,
+				Model:          c.DEFAULT_MODEL,
+				GEMINI_API_KEY: c.GEMINI_API_KEY,
+				OPENAI_API_KEY: c.OPENAI_API_KEY,
+			})
 
 			p := tea.NewProgram(chatModel, opts...)
 			m, err := p.Run()
@@ -198,5 +206,4 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	rootCmd.Flags().StringVarP(&c.Model, "model", "m", c.Model, "Change Model")
 }
