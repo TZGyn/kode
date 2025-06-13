@@ -154,7 +154,7 @@ var rootCmd = &cobra.Command{
 				if err != nil {
 					fmt.Println(err)
 				}
-				fmt.Println(message.AssistantStyle.Render(out + "\n\n" + "  " + chatModel.Model))
+				fmt.Println(message.AssistantStyle.Render(out + "\n\n" + "  " + message.SecondaryStyle.Render(chatModel.Provider+" "+chatModel.Model)))
 			} else {
 				fmt.Println("No Response")
 			}

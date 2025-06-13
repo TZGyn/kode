@@ -14,3 +14,6 @@ var AssistantStyle = lipgloss.NewStyle().
 	BorderLeft(true).
 	BorderStyle(lipgloss.ThickBorder()).
 	BorderForeground(lipgloss.Color("#F57FE0"))
+
+var SecondaryStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#848484"))

@@ -240,10 +240,10 @@ func (m *ChatModel) View() string {
 		return m.anim.View()
 	case responseState:
 		if m.viewportNeeded() {
-			return message.AssistantStyle.Render(m.glamViewport.View() + "\n\n" + "  " + m.Model + " " + m.anim.View())
+			return message.AssistantStyle.Render(m.glamViewport.View() + "\n\n" + "  " + message.SecondaryStyle.Render(m.Provider+" "+m.Model) + " " + m.anim.View())
 		}
 
-		return message.AssistantStyle.Render(m.glamOutput + "\n\n" + "  " + m.Model + " " + m.anim.View())
+		return message.AssistantStyle.Render(m.glamOutput + "\n\n" + "  " + message.SecondaryStyle.Render(m.Provider+" "+m.Model) + " " + m.anim.View())
 	case doneState:
 		return ""
 	}
