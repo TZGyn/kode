@@ -9,6 +9,7 @@ import (
 
 	"github.com/TZGyn/kode/internal/animation"
 	"github.com/TZGyn/kode/internal/google"
+	"github.com/TZGyn/kode/internal/message"
 	openAI "github.com/TZGyn/kode/internal/openai"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,8 +34,8 @@ type ChatModel struct {
 	state  state
 	status string
 
-	provider string
-	model    string
+	Provider string
+	Model    string
 
 	GoogleClient *google.GoogleClient
 	OpenAIClient *openAI.OpenAIClient
@@ -92,8 +93,8 @@ func InitialModel(prompt string, messages ChatMessages, config ChatConfig) *Chat
 	return &ChatModel{
 		state: startState,
 
-		provider: config.Provider,
-		model:    config.Model,
+		Provider: config.Provider,
+		Model:    config.Model,
 
 		GoogleClient: client,
 		OpenAIClient: openAIClient,
@@ -122,7 +123,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.anim.Init(), func() tea.Msg { return generatingMsg{} })
 	case generatingMsg:
 		go func(model *ChatModel) {
-			if model.provider == "google" {
+			if model.Provider == "google" {
 				googleMessages, err := model.messages.ConvertToGoogleMessages()
 				if err == nil {
 					model.GoogleClient.Messages = append(model.GoogleClient.Messages, googleMessages...)
@@ -137,7 +138,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					model.GoogleClient.Messages,
 					&model.Response,
 				)
-			} else if model.provider == "openai" {
+			} else if model.Provider == "openai" {
 				openaiMessages, err := model.messages.ConvertToOpenAIMessages()
 				if err == nil {
 					model.OpenAIClient.Messages = append(model.OpenAIClient.Messages, openaiMessages...)
@@ -239,10 +240,10 @@ func (m *ChatModel) View() string {
 		return m.anim.View()
 	case responseState:
 		if m.viewportNeeded() {
-			return m.glamViewport.View() + "\n\n" + m.anim.View()
+			return message.AssistantStyle.Render(m.glamViewport.View() + "\n\n" + "  " + m.Model + " " + m.anim.View())
 		}
 
-		return m.glamOutput + "\n\n" + m.anim.View()
+		return message.AssistantStyle.Render(m.glamOutput + "\n\n" + "  " + m.Model + " " + m.anim.View())
 	case doneState:
 		return ""
 	}

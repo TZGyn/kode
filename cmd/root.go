@@ -4,6 +4,7 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"github.com/TZGyn/kode/internal/message"
 	"github.com/TZGyn/kode/internal/model"
 
 	"encoding/json"
@@ -19,7 +20,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	huh "github.com/charmbracelet/huh"
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -136,9 +136,7 @@ var rootCmd = &cobra.Command{
 				break
 			}
 
-			fmt.Print("\n  ")
-			color.BgRGB(95, 95, 255).AddRGB(230, 255, 219).Println(" User: ")
-			fmt.Println(out)
+			fmt.Println(message.UserStyle.Render(out))
 
 			chatModel := model.InitialModel(prompt, messages, c)
 
@@ -156,9 +154,7 @@ var rootCmd = &cobra.Command{
 				if err != nil {
 					fmt.Println(err)
 				}
-				fmt.Print("  ")
-				color.RGB(254, 229, 250).AddBgRGB(245, 127, 224).Println(" Assistant: ")
-				fmt.Println(out)
+				fmt.Println(message.AssistantStyle.Render(out + "\n\n" + "  " + chatModel.Model))
 			} else {
 				fmt.Println("No Response")
 			}
