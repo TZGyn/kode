@@ -124,7 +124,11 @@ func (c *ChatMessages) ConvertToOpenAIMessages() ([]openai.ChatCompletionMessage
 
 		for _, part := range content.Parts {
 			if part.Type == "text" {
-				openAIMessages = append(openAIMessages, openai.UserMessage(part.Text))
+				if content.Role == "user" {
+					openAIMessages = append(openAIMessages, openai.UserMessage(part.Text))
+				} else if content.Role == "assistant" {
+					openAIMessages = append(openAIMessages, openai.AssistantMessage(part.Text))
+				}
 			}
 			if part.Type == "tool-call" {
 			}
@@ -139,6 +143,9 @@ func (c *ChatMessages) ConvertToOpenAIMessages() ([]openai.ChatCompletionMessage
 
 func (c *ChatMessages) AddOpenAIMessages(messages []openai.ChatCompletionMessageParamUnion) error {
 	for _, message := range messages {
+		if message.OfSystem != nil {
+			continue
+		}
 		parts := []*ChatPart{}
 		if message.OfUser != nil {
 			parts = append(parts, &ChatPart{

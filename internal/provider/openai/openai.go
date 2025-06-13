@@ -53,7 +53,7 @@ func Create(config Config) (*OpenAIClient, error) {
 func (c *OpenAIClient) SendMessage(messages []openai.ChatCompletionMessageParamUnion, response *string) error {
 	c.Messages = messages
 	withSystemMessage := []openai.ChatCompletionMessageParamUnion{
-		openai.DeveloperMessage(
+		openai.SystemMessage(
 			fmt.Sprintf(`
 				You are a cli code assistant named kode
 				Today's Date: %s
@@ -64,7 +64,7 @@ func (c *OpenAIClient) SendMessage(messages []openai.ChatCompletionMessageParamU
 				Common Order: Tool, Text
 				Better order you must follow: Text, Tool, Text
 
-				You have been given tools to fulfill user request, make sure to keep using them until the user request is fulfilled
+				You have been given tools to fulfill user request, they are optional to use but make sure to use them if needed to fulfill the user request
 				Always check the progress to make sure you dont infinite loop
 			`, time.Now().Format("2006-01-02 15:04:05")),
 		),
