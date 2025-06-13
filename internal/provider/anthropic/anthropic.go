@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
+	"github.com/TZGyn/kode/internal/provider/prompt"
 	"github.com/TZGyn/kode/internal/tool"
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -66,23 +66,12 @@ func (c *AnthropicClient) SendMessage(messages []anthropic.MessageParam, respons
 			Messages: messages,
 			System: []anthropic.TextBlockParam{
 				{
-					Text: fmt.Sprintf(`
-						You are a cli code assistant named kode
-						Today's Date: %s
-
-						It is a must to generate some text, letting the user knows your thinking process before using a tool.
-						Thus providing better user experience, rather than immediately jump to using the tool and generate a conclusion
-
-						Common Order: Tool, Text
-						Better order you must follow: Text, Tool, Text
-
-						You have been given tools to fulfill user request, make sure to keep using them until the user request is fulfilled
-						Always check the progress to make sure you dont infinite loop
-					`, time.Now().Format("2006-01-02 15:04:05")),
+					Text: prompt.SystemPrompt(),
 				},
 			},
-			Tools: tools,
-			Model: c.model,
+			Tools:     tools,
+			Model:     c.model,
+			MaxTokens: 5000,
 		},
 	)
 

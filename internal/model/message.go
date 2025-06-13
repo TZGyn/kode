@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/openai/openai-go"
 	"google.golang.org/genai"
 )
@@ -121,7 +122,6 @@ func (c *ChatMessages) ConvertToOpenAIMessages() ([]openai.ChatCompletionMessage
 	openAIMessages := []openai.ChatCompletionMessageParamUnion{}
 
 	for _, content := range *c {
-
 		for _, part := range content.Parts {
 			if part.Type == "text" {
 				if content.Role == "user" {
@@ -133,7 +133,13 @@ func (c *ChatMessages) ConvertToOpenAIMessages() ([]openai.ChatCompletionMessage
 			if part.Type == "tool-call" {
 			}
 			if part.Type == "tool-result" {
-				openAIMessages = append(openAIMessages, openai.ToolMessage(createKeyValuePairs(part.ToolCallResult), part.ToolCallID))
+				data, err := json.Marshal(part.ToolCallResult)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+
+				openAIMessages = append(openAIMessages, openai.ToolMessage(string(data), part.ToolCallID))
 			}
 		}
 	}
@@ -155,7 +161,18 @@ func (c *ChatMessages) AddOpenAIMessages(messages []openai.ChatCompletionMessage
 		}
 		if message.OfTool != nil {
 			result := make(map[string]any)
-			result["result"] = message.OfTool.Content.OfString.String()
+			data, err := message.OfTool.Content.MarshalJSON()
+
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+
+			err = json.Unmarshal(data, &result)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
 
 			parts = append(parts, &ChatPart{
 				Type:           "tool-result",
@@ -186,6 +203,93 @@ func (c *ChatMessages) AddOpenAIMessages(messages []openai.ChatCompletionMessage
 		}
 
 		*c = append(*c, &ChatMessage{Role: *message.GetRole(), Parts: parts})
+	}
+	return nil
+}
+
+func (c *ChatMessages) ConvertToAnthropicMessages() ([]anthropic.MessageParam, error) {
+	messages := []anthropic.MessageParam{}
+
+	for _, content := range *c {
+		for _, part := range content.Parts {
+			if part.Type == "text" {
+				if content.Role == "user" {
+					messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(part.Text)))
+				} else if content.Role == "assistant" {
+					messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(part.Text)))
+				}
+			}
+			if part.Type == "tool-call" {
+				messages = append(messages,
+					anthropic.NewAssistantMessage(
+						anthropic.NewToolUseBlock(part.ToolCallID, part.ToolCallArgs, part.ToolCallName),
+					),
+				)
+			}
+			if part.Type == "tool-result" {
+				messages = append(messages,
+					anthropic.NewAssistantMessage(
+						anthropic.NewToolResultBlock(part.ToolCallID, createKeyValuePairs(part.ToolCallResult), false),
+					),
+				)
+			}
+		}
+	}
+
+	return messages, nil
+}
+
+func (c *ChatMessages) AddAnthropicMessages(messages []anthropic.MessageParam) error {
+	for _, message := range messages {
+		parts := []*ChatPart{}
+		for _, content := range message.Content {
+			if content.OfText != nil {
+				parts = append(parts, &ChatPart{Type: "text", Text: *content.GetText()})
+			}
+			if content.OfToolUse != nil {
+				args := make(map[string]any)
+				data, err := content.OfToolUse.MarshalJSON()
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+
+				err = json.Unmarshal(data, &args)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+
+				parts = append(parts, &ChatPart{
+					Type:         "tool-call",
+					ToolCallName: content.OfToolUse.Name,
+					ToolCallID:   content.OfToolUse.ID,
+					ToolCallArgs: args,
+				})
+			}
+			if content.OfToolResult != nil {
+				result := make(map[string]any)
+				data, err := content.OfToolResult.MarshalJSON()
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+
+				err = json.Unmarshal(data, &result)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+
+				parts = append(parts, &ChatPart{
+					Type:           "tool-result",
+					ToolCallID:     content.OfToolResult.ToolUseID,
+					ToolCallResult: result,
+				})
+			}
+		}
+
+		*c = append(*c, &ChatMessage{Role: string(message.Role), Parts: parts})
 	}
 	return nil
 }

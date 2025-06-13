@@ -9,8 +9,10 @@ import (
 
 	"github.com/TZGyn/kode/internal/animation"
 	"github.com/TZGyn/kode/internal/message"
+	anthropicProvider "github.com/TZGyn/kode/internal/provider/anthropic"
 	"github.com/TZGyn/kode/internal/provider/google"
 	openAI "github.com/TZGyn/kode/internal/provider/openai"
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -37,9 +39,11 @@ type ChatModel struct {
 	Provider string
 	Model    string
 
-	GoogleClient *google.GoogleClient
-	OpenAIClient *openAI.OpenAIClient
-	messages     ChatMessages
+	GoogleClient    *google.GoogleClient
+	OpenAIClient    *openAI.OpenAIClient
+	AnthropicClient *anthropicProvider.AnthropicClient
+
+	messages ChatMessages
 
 	Prompt   string
 	Response string
@@ -55,10 +59,11 @@ type ChatModel struct {
 }
 
 type ChatConfig struct {
-	Provider       string `json:"provider"`
-	Model          string `json:"model"`
-	GEMINI_API_KEY string `json:"GEMINI_API_KEY"`
-	OPENAI_API_KEY string `json:"OPENAI_API_KEY"`
+	Provider          string `json:"provider"`
+	Model             string `json:"model"`
+	GEMINI_API_KEY    string `json:"GEMINI_API_KEY"`
+	OPENAI_API_KEY    string `json:"OPENAI_API_KEY"`
+	ANTHROPIC_API_KEY string `json:"ANTHROPIC_API_KEY"`
 }
 
 type initMsg struct{}
@@ -90,15 +95,23 @@ func InitialModel(prompt string, messages ChatMessages, config ChatConfig) *Chat
 		log.Fatal(err)
 	}
 
+	anthropicConfig := anthropicProvider.DefaultConfig(config.ANTHROPIC_API_KEY, config.Model)
+	anthropicClient, err := anthropicProvider.Create(anthropicConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &ChatModel{
 		state: startState,
 
 		Provider: config.Provider,
 		Model:    config.Model,
 
-		GoogleClient: client,
-		OpenAIClient: openAIClient,
-		messages:     messages,
+		GoogleClient:    client,
+		OpenAIClient:    openAIClient,
+		AnthropicClient: anthropicClient,
+
+		messages: messages,
 
 		Prompt:       prompt,
 		status:       "generating",
@@ -153,6 +166,24 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					model.OpenAIClient.Messages,
 					&model.Response,
 				)
+			} else if model.Provider == "anthropic" {
+				anthropicMessages, err := model.messages.ConvertToAnthropicMessages()
+				if err != nil {
+					model.AnthropicClient.Messages = append(model.AnthropicClient.Messages, anthropicMessages...)
+				}
+
+				model.AnthropicClient.Messages = append(
+					model.AnthropicClient.Messages,
+					anthropic.NewUserMessage(anthropic.NewTextBlock(model.Prompt)),
+				)
+
+				err = model.AnthropicClient.SendMessage(
+					model.AnthropicClient.Messages,
+					&model.Response,
+				)
+				if err != nil {
+					log.Fatalln(err)
+				}
 			}
 			model.status = "done"
 		}(m)

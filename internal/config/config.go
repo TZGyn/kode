@@ -11,10 +11,11 @@ import (
 )
 
 type Config struct {
-	GEMINI_API_KEY   string `json:"GEMINI_API_KEY"`
-	OPENAI_API_KEY   string `json:"OPENAI_API_KEY"`
-	DEFAULT_PROVIDER string `json:"default_provider"`
-	DEFAULT_MODEL    string `json:"default_model"`
+	GEMINI_API_KEY    string `json:"GEMINI_API_KEY"`
+	OPENAI_API_KEY    string `json:"OPENAI_API_KEY"`
+	ANTHROPIC_API_KEY string `json:"ANTHROPIC_API_KEY"`
+	DEFAULT_PROVIDER  string `json:"default_provider"`
+	DEFAULT_MODEL     string `json:"default_model"`
 }
 
 func New() (*Config, error) {

@@ -142,10 +142,11 @@ var rootCmd = &cobra.Command{
 			fmt.Println(message.UserStyle.Render(out))
 
 			chatModel := model.InitialModel(prompt, messages, model.ChatConfig{
-				Provider:       c.DEFAULT_PROVIDER,
-				Model:          c.DEFAULT_MODEL,
-				GEMINI_API_KEY: c.GEMINI_API_KEY,
-				OPENAI_API_KEY: c.OPENAI_API_KEY,
+				Provider:          c.DEFAULT_PROVIDER,
+				Model:             c.DEFAULT_MODEL,
+				GEMINI_API_KEY:    c.GEMINI_API_KEY,
+				OPENAI_API_KEY:    c.OPENAI_API_KEY,
+				ANTHROPIC_API_KEY: c.ANTHROPIC_API_KEY,
 			})
 
 			p := tea.NewProgram(chatModel, opts...)
@@ -180,6 +181,14 @@ var rootCmd = &cobra.Command{
 				if err != nil {
 					fmt.Println("Failed to remember openai response")
 				}
+			}
+			if len(chatModel.AnthropicClient.Messages) > 0 {
+				messages = model.ChatMessages{}
+				err = messages.AddAnthropicMessages(chatModel.AnthropicClient.Messages)
+				if err != nil {
+					fmt.Println("Failed to remember openai response")
+				}
+
 			}
 		}
 		return nil
