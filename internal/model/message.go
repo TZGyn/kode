@@ -1,7 +1,6 @@
 package model
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -108,14 +107,6 @@ func (c *ChatMessages) AddGoogleMessages(messages []*genai.Content) error {
 	}
 
 	return nil
-}
-
-func createKeyValuePairs(m map[string]any) string {
-	b := new(bytes.Buffer)
-	for key, value := range m {
-		fmt.Fprintf(b, "%s=\"%s\"\n", key, value)
-	}
-	return b.String()
 }
 
 func (c *ChatMessages) ConvertToOpenAIMessages() ([]openai.ChatCompletionMessageParamUnion, error) {
@@ -227,9 +218,14 @@ func (c *ChatMessages) ConvertToAnthropicMessages() ([]anthropic.MessageParam, e
 				)
 			}
 			if part.Type == "tool-result" {
+				result, err := json.Marshal(part.ToolCallResult)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
 				messages = append(messages,
 					anthropic.NewAssistantMessage(
-						anthropic.NewToolResultBlock(part.ToolCallID, createKeyValuePairs(part.ToolCallResult), false),
+						anthropic.NewToolResultBlock(part.ToolCallID, string(result), false),
 					),
 				)
 			}

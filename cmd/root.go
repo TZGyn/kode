@@ -7,6 +7,7 @@ import (
 	"github.com/TZGyn/kode/internal/config"
 	"github.com/TZGyn/kode/internal/message"
 	"github.com/TZGyn/kode/internal/model"
+	"github.com/TZGyn/kode/internal/models"
 
 	"errors"
 	"fmt"
@@ -48,28 +49,28 @@ var rootCmd = &cobra.Command{
 
 		messages := model.ChatMessages{}
 
-		providerOpts := make([]huh.Option[string], 0, len(providers))
-		modelOpts := map[string][]huh.Option[string]{}
+		providerOpts := make([]huh.Option[models.ModelProvider], 0, len(models.Models))
+		modelOpts := map[models.ModelProvider][]huh.Option[models.ModelID]{}
 
-		for _, provider := range providers {
-			providerOpts = append(providerOpts, huh.NewOption(provider, provider))
-			for _, model := range models[provider] {
-				modelOpts[provider] = append(modelOpts[provider], huh.NewOption(model, model))
+		for provider, models := range models.Models {
+			providerOpts = append(providerOpts, huh.NewOption(string(provider), provider))
+			for _, model := range models {
+				modelOpts[provider] = append(modelOpts[provider], huh.NewOption(string(model.ID), model.ID))
 			}
 		}
 
 		if c.DEFAULT_MODEL == "" || c.DEFAULT_PROVIDER == "" {
 			err = huh.NewForm(
 				huh.NewGroup(
-					huh.NewSelect[string]().
+					huh.NewSelect[models.ModelProvider]().
 						Title("Choose the Provider:").
 						Options(providerOpts...).
 						Value(&c.DEFAULT_PROVIDER),
-					huh.NewSelect[string]().
+					huh.NewSelect[models.ModelID]().
 						TitleFunc(func() string {
 							return fmt.Sprintf("Choose the model for '%s':", c.DEFAULT_PROVIDER)
 						}, &c.DEFAULT_PROVIDER).
-						OptionsFunc(func() []huh.Option[string] {
+						OptionsFunc(func() []huh.Option[models.ModelID] {
 							return modelOpts[c.DEFAULT_PROVIDER]
 						}, &c.DEFAULT_PROVIDER).
 						Value(&c.DEFAULT_MODEL),
@@ -107,15 +108,15 @@ var rootCmd = &cobra.Command{
 			if prompt == "/model" {
 				err = huh.NewForm(
 					huh.NewGroup(
-						huh.NewSelect[string]().
+						huh.NewSelect[models.ModelProvider]().
 							Title("Choose the Provider:").
 							Options(providerOpts...).
 							Value(&c.DEFAULT_PROVIDER),
-						huh.NewSelect[string]().
+						huh.NewSelect[models.ModelID]().
 							TitleFunc(func() string {
 								return fmt.Sprintf("Choose the model for '%s':", c.DEFAULT_PROVIDER)
 							}, &c.DEFAULT_PROVIDER).
-							OptionsFunc(func() []huh.Option[string] {
+							OptionsFunc(func() []huh.Option[models.ModelID] {
 								return modelOpts[c.DEFAULT_PROVIDER]
 							}, &c.DEFAULT_PROVIDER).
 							Value(&c.DEFAULT_MODEL),
@@ -142,8 +143,8 @@ var rootCmd = &cobra.Command{
 			fmt.Println(message.UserStyle.Render(out))
 
 			chatModel := model.InitialModel(prompt, messages, model.ChatConfig{
-				Provider:          c.DEFAULT_PROVIDER,
-				Model:             c.DEFAULT_MODEL,
+				Provider:          string(c.DEFAULT_PROVIDER),
+				Model:             string(c.DEFAULT_MODEL),
 				GEMINI_API_KEY:    c.GEMINI_API_KEY,
 				OPENAI_API_KEY:    c.OPENAI_API_KEY,
 				ANTHROPIC_API_KEY: c.ANTHROPIC_API_KEY,

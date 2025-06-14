@@ -136,7 +136,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.anim.Init(), func() tea.Msg { return generatingMsg{} })
 	case generatingMsg:
 		go func(model *ChatModel) {
-			if model.Provider == "google" {
+			if model.Provider == "gemini" {
 				googleMessages, err := model.messages.ConvertToGoogleMessages()
 				if err == nil {
 					model.GoogleClient.Messages = append(model.GoogleClient.Messages, googleMessages...)
