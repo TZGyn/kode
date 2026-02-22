@@ -1,11 +1,18 @@
 /*
 Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-
 */
 package main
 
-import "github.com/TZGyn/kode/cmd"
+import (
+	"context"
+	"os"
+
+	"github.com/TZGyn/kode/cmd"
+	"github.com/charmbracelet/fang"
+)
 
 func main() {
-	cmd.Execute()
+	if err := fang.Execute(context.Background(), cmd.RootCmd); err != nil {
+		os.Exit(1)
+	}
 }
