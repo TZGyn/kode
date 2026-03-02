@@ -1,11 +1,13 @@
 package app
 
+import "github.com/TZGyn/kode/internal/components/message"
+
 type App struct {
 	ID string
 
 	Session Session
 
-	Messages []string
+	Messages []message.MessagePart
 }
 
 type Session struct {

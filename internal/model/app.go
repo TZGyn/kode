@@ -6,40 +6,46 @@ package model
 import (
 	"fmt"
 
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/TZGyn/kode/internal/app"
+	"github.com/TZGyn/kode/internal/components/message"
+	"github.com/TZGyn/kode/internal/components/prompt"
+	"github.com/TZGyn/kode/internal/components/spinner"
 	"github.com/TZGyn/kode/internal/components/viewport"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textarea"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/TZGyn/kode/internal/layout"
 )
 
 type errMsg error
 
 type Model struct {
-	App *app.App
+	App    *app.App
+	Layout *layout.Layout
 
-	spinner spinner.Model
+	spinner *spinner.Spinner
 
 	homeinput textarea.Model
-	chatinput textarea.Model
+
+	promptInput *prompt.PromptComponent
 
 	viewport viewport.Model
 
-	width    int
-	height   int
-	quitting bool
-	err      error
+	// use to request window size every 5 frames in windows
+	// due to windows not having terminal resize message
+	frame int
+
+	err error
 }
 
 func InitAppModel() Model {
 	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	app := app.NewApp()
 
 	ta := textarea.New()
+
+	ta.KeyMap.InsertNewline.SetEnabled(false)
 
 	ta.Placeholder = "Send a message..."
 	ta.Focus()
@@ -47,100 +53,144 @@ func InitAppModel() Model {
 	ta.ShowLineNumbers = false
 
 	ta.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("#2d8fff")).Render("┃ ")
+
+	style := ta.Styles()
+
+	style.Focused.Base = lipgloss.NewStyle()
+	style.Focused.CursorLine = lipgloss.NewStyle()
+
+	ta.SetStyles(style)
+
 	ta.CharLimit = 280
 
-	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	prompt := prompt.NewPrompt()
 
-	chatinput := textarea.New()
+	layout := layout.Layout{}
 
-	chatinput.Placeholder = "Send a message..."
-	chatinput.ShowLineNumbers = false
-
-	chatinput.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("#2d8fff")).Render("┃ ")
-	chatinput.CharLimit = 3000
-
-	// Remove cursor line styling
-	chatinput.FocusedStyle.CursorLine = lipgloss.NewStyle()
-
-	chatinput.KeyMap.InsertNewline.SetEnabled(false)
-	chatinput.Focus()
-
-	viewport := viewport.CreateViewport("", app)
+	viewport := viewport.CreateViewport("", app, &prompt, &layout)
 
 	return Model{
-		spinner:   s,
-		App:       app,
-		viewport:  viewport,
-		homeinput: ta,
-		chatinput: chatinput,
+		spinner:     s,
+		App:         app,
+		Layout:      &layout,
+		viewport:    viewport,
+		homeinput:   ta,
+		promptInput: &prompt,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.spinner.Tick
+	return m.spinner.Init()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	var (
-		tiCmd tea.Cmd
-	)
-
-	m.homeinput, tiCmd = m.homeinput.Update(msg)
-	cmds = append(cmds, tiCmd)
+	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
-			m.quitting = true
 			return m, tea.Quit
 		case "enter":
-			m.App.Session.ID = "hello"
-			m.App.Messages = append(m.App.Messages, m.chatinput.Value())
+			if m.promptInput.Value() == "/exit" {
+				return m, tea.Quit
+			}
+			if m.App.Session.ID != "" {
+				if m.promptInput.Value() != "" {
+					m.App.Messages = append(
+						m.App.Messages,
+						message.MessagePart{
+							ID:        "hello",
+							MessageID: "hello",
+							SessionID: "hello",
+							Role:      message.User,
+							Content: message.TextPart{
+								Content: m.promptInput.Value(),
+							},
+							Layout: m.Layout,
+						},
+					)
+				}
+			} else {
+				m.App.Session.ID = "hello"
+
+				if m.homeinput.Value() != "" {
+					m.App.Messages = append(
+						m.App.Messages,
+						message.MessagePart{
+							ID:        "hello",
+							MessageID: "hello",
+							SessionID: "hello",
+							Role:      message.User,
+							Content: message.TextPart{
+								Content: m.homeinput.Value(),
+							},
+							Layout: m.Layout,
+						},
+					)
+				}
+			}
 
 			var cmd tea.Cmd
-			m.viewport, cmd = m.viewport.Reload(msg)
+			m.viewport, cmd = m.viewport.ReloadAndScrollDown(msg)
 
 			cmds = append(cmds, cmd)
 		}
 	case tea.WindowSizeMsg:
 		// msg.Height -= 2 // Make space for the status bar
-		m.width, m.height = msg.Width, msg.Height
+		m.Layout.Width, m.Layout.Height = msg.Width, msg.Height
 
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Reload(msg)
+
+		cmds = append(cmds, cmd)
 	case errMsg:
 		m.err = msg
 		return m, nil
 
 	default:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		cmds = append(cmds, cmd)
 	}
 
-	var cmd tea.Cmd
-	m.chatinput, cmd = m.chatinput.Update(msg)
-	cmds = append(cmds, cmd)
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
+
+	m.homeinput, cmd = m.homeinput.Update(msg)
+	cmds = append(cmds, cmd)
+
+	m.promptInput, cmd = m.promptInput.Update(msg)
+	cmds = append(cmds, cmd)
+
+	m.spinner, cmd = m.spinner.Update(msg)
+	cmds = append(cmds, cmd)
+
+	m.frame += 1
+	m.frame %= 5
+
+	if m.frame == 0 {
+		cmds = append(cmds, tea.RequestWindowSize)
+	}
 
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	var view tea.View
+
 	if m.err != nil {
-		return m.err.Error()
-	}
-	str := fmt.Sprintf("\n\n   %s Loading forever...press q to quit\n\n", m.spinner.View())
-	if m.quitting {
-		return str + "\n"
+		view = tea.NewView(m.err.Error())
 	}
 	if m.App.Session.ID == "" {
-		return m.home()
+		view = tea.NewView(m.home())
 	} else {
-		return m.chat()
+		view = tea.NewView(m.chat())
 	}
+
+	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
+
+	return view
 }
 
 func (m Model) home() string {
@@ -156,26 +206,34 @@ func (m Model) home() string {
 `
 
 	mainLayout := lipgloss.Place(
-		m.width,
-		m.height,
+		m.Layout.Width,
+		m.Layout.Height+2,
 		lipgloss.Center,
 		lipgloss.Center,
 		kode+"\n"+fmt.Sprintf("%s", m.homeinput.View()),
-		lipgloss.WithWhitespaceBackground(lipgloss.Color("#000000")),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(lipgloss.Color("#000000"))),
 	)
 
 	return mainLayout
 }
 
 func (m Model) chat() string {
-	mainLayout := lipgloss.NewStyle().Background(lipgloss.Color("#000000")).Padding(1).Render(lipgloss.Place(
-		m.width,
-		m.height,
+	mainLayout := lipgloss.NewStyle().Background(lipgloss.Color("#000000")).Render(lipgloss.Place(
+		m.Layout.Width,
+		m.Layout.Height,
 		lipgloss.Left,
 		lipgloss.Bottom,
-		m.viewport.View()+"\n"+m.chatinput.View(),
-		lipgloss.WithWhitespaceBackground(lipgloss.Color("#000000")),
+		m.viewport.View().Content+"\n\n"+m.prompt()+"\n"+m.statusBar()+"\n",
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(lipgloss.Color("#000000"))),
 	))
 
 	return mainLayout
+}
+
+func (m Model) prompt() string {
+	return lipgloss.NewStyle().Padding(1).Background(lipgloss.Color("#000000")).Render(m.promptInput.View().Content)
+}
+
+func (m Model) statusBar() string {
+	return lipgloss.NewStyle().Padding(0, 2).Render(m.spinner.View().Content)
 }

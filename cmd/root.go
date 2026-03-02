@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/TZGyn/kode/internal/model"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
@@ -21,8 +21,7 @@ var RootCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		p := tea.NewProgram(
 			model.InitAppModel(),
-			tea.WithAltScreen(),       // use the full size of the terminal in its "alternate screen buffer"
-			tea.WithMouseCellMotion(), // turn on mouse support so we can track the mouse wheel
+			tea.WithContext(cmd.Context()),
 		)
 		if _, err := p.Run(); err != nil {
 			fmt.Println(err)
