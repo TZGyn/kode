@@ -1,8 +1,10 @@
 package message
 
-import "github.com/TZGyn/kode/internal/layout"
+import (
+	"github.com/TZGyn/kode/internal/layout"
+)
 
-type MessagePart struct {
+type Message struct {
 	ID        string
 	MessageID string
 	SessionID string
@@ -11,9 +13,9 @@ type MessagePart struct {
 
 	Role MessageRole
 
-	Content ContentPart
+	Content *Content
 }
 
-func (m MessagePart) ToUIString() string {
+func (m *Message) ToUIString() string {
 	return Render(m.Role, m.Layout.Width, m.Content.String())
 }

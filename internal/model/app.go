@@ -23,13 +23,10 @@ type Model struct {
 	App    *app.App
 	Layout *layout.Layout
 
-	spinner *spinner.Spinner
-
-	homeinput textarea.Model
-
+	spinner     *spinner.Spinner
+	homeinput   textarea.Model
 	promptInput *prompt.PromptComponent
-
-	viewport viewport.Model
+	viewport    viewport.Model
 
 	// use to request window size every 5 frames in windows
 	// due to windows not having terminal resize message
@@ -38,10 +35,10 @@ type Model struct {
 	err error
 }
 
+type reloadMsg struct{}
+
 func InitAppModel() Model {
 	s := spinner.New()
-
-	app := app.NewApp()
 
 	ta := textarea.New()
 
@@ -66,6 +63,8 @@ func InitAppModel() Model {
 	prompt := prompt.NewPrompt()
 
 	layout := layout.Layout{}
+
+	app := app.NewApp(&layout)
 
 	viewport := viewport.CreateViewport("", app, &prompt, &layout)
 
@@ -99,37 +98,65 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.App.Session.ID != "" {
 				if m.promptInput.Value() != "" {
-					m.App.Messages = append(
-						m.App.Messages,
-						message.MessagePart{
+					*m.App.Messages = append(
+						*m.App.Messages,
+						message.Message{
 							ID:        "hello",
 							MessageID: "hello",
 							SessionID: "hello",
 							Role:      message.User,
-							Content: message.TextPart{
-								Content: m.promptInput.Value(),
+							Content: &message.Content{
+								message.TextPart{
+									Content: m.promptInput.Value(),
+								},
 							},
 							Layout: m.Layout,
 						},
+						message.Message{
+							ID:        "hello",
+							MessageID: "hello",
+							SessionID: "hello",
+							Role:      message.Assistant,
+							Content:   &message.Content{},
+							Layout:    m.Layout,
+						},
 					)
+
+					go func() {
+						m.App.Agent.Generate(m.promptInput.Value())
+					}()
 				}
 			} else {
 				m.App.Session.ID = "hello"
 
 				if m.homeinput.Value() != "" {
-					m.App.Messages = append(
-						m.App.Messages,
-						message.MessagePart{
+					*m.App.Messages = append(
+						*m.App.Messages,
+						message.Message{
 							ID:        "hello",
 							MessageID: "hello",
 							SessionID: "hello",
 							Role:      message.User,
-							Content: message.TextPart{
-								Content: m.homeinput.Value(),
+							Content: &message.Content{
+								message.TextPart{
+									Content: m.homeinput.Value(),
+								},
 							},
 							Layout: m.Layout,
 						},
+						message.Message{
+							ID:        "hello",
+							MessageID: "hello",
+							SessionID: "hello",
+							Role:      message.Assistant,
+							Content:   &message.Content{},
+							Layout:    m.Layout,
+						},
 					)
+
+					go func() {
+						m.App.Agent.Generate(m.homeinput.Value())
+					}()
 				}
 			}
 
@@ -144,6 +171,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Reload(msg)
+
+		cmds = append(cmds, cmd)
+	case reloadMsg:
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.ReloadAndScrollDown(msg)
 
 		cmds = append(cmds, cmd)
 	case errMsg:
@@ -170,6 +202,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if m.frame == 0 {
 		cmds = append(cmds, tea.RequestWindowSize)
+	}
+
+	if m.App.Agent.RequestRefresh {
+		cmds = append(cmds, func() tea.Msg { return reloadMsg{} })
+		m.App.Agent.RequestRefresh = false
 	}
 
 	return m, tea.Batch(cmds...)

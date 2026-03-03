@@ -1,19 +1,30 @@
 package app
 
-import "github.com/TZGyn/kode/internal/components/message"
+import (
+	"github.com/TZGyn/kode/internal/agent"
+	"github.com/TZGyn/kode/internal/components/message"
+	"github.com/TZGyn/kode/internal/layout"
+)
 
 type App struct {
 	ID string
 
 	Session Session
+	Agent   *agent.Agent
 
-	Messages []message.MessagePart
+	Messages *[]message.Message
+
+	Layout *layout.Layout
 }
 
 type Session struct {
 	ID string
 }
 
-func NewApp() *App {
-	return &App{}
+func NewApp(layout *layout.Layout) *App {
+	var messages *[]message.Message = &[]message.Message{}
+
+	agent := agent.New(messages, layout)
+
+	return &App{Agent: agent, Messages: messages, Layout: layout}
 }

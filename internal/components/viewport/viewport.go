@@ -48,7 +48,7 @@ func (m Model) SetContent(content string) {
 func (m Model) Reload(msg tea.Msg) (Model, tea.Cmd) {
 	var content []string
 
-	for _, m := range m.App.Messages {
+	for _, m := range *m.App.Messages {
 		content = append(content, m.ToUIString())
 	}
 
