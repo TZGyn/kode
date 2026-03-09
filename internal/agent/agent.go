@@ -18,6 +18,8 @@ type Agent struct {
 
 	RequestRefresh bool
 
+	Generating bool
+
 	messages *[]message.Message
 
 	Layout *layout.Layout
@@ -42,7 +44,7 @@ func New(messages *[]message.Message, layout *layout.Layout) *Agent {
 
 	ctx := context.Background()
 
-	model, err := provider.LanguageModel(ctx, "gpt-4o")
+	model, err := provider.LanguageModel(ctx, "gpt-5-nano")
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -51,14 +53,23 @@ func New(messages *[]message.Message, layout *layout.Layout) *Agent {
 	agent := fantasy.NewAgent(
 		model,
 		fantasy.WithSystemPrompt(""),
+		fantasy.WithTools(),
 	)
 
 	return &Agent{Agent: agent, Context: ctx, messages: messages, Layout: layout}
 }
 
 func (a *Agent) Generate(prompt string) {
-	// Alright, let's setup a streaming request!
+	messages := a.GetFantasyMessages()
+
+	a.Generating = true
+
+	defer func() {
+		a.Generating = false
+	}()
+
 	streamCall := fantasy.AgentStreamCall{
+		Messages: messages[:len(messages)-1],
 		// The prompt.
 		Prompt: prompt,
 
@@ -70,6 +81,7 @@ func (a *Agent) Generate(prompt string) {
 
 			part := messages[len(messages)-1]
 			part.Content.AppendTextDelta(text)
+			part.UIString = part.ToUIString()
 			messages[len(messages)-1] = part
 
 			*a.messages = messages
@@ -107,4 +119,36 @@ func (a *Agent) Generate(prompt string) {
 		fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func (a *Agent) GetFantasyMessages() []fantasy.Message {
+	messages := []fantasy.Message{}
+
+	for _, m := range *a.messages {
+		var role fantasy.MessageRole
+
+		if m.Role == message.Assistant {
+			role = fantasy.MessageRoleAssistant
+		} else if m.Role == message.User {
+			role = fantasy.MessageRoleUser
+		}
+
+		parts := []fantasy.MessagePart{}
+
+		for _, p := range *m.Content {
+			switch t := p.(type) {
+			case message.TextPart:
+				parts = append(parts, fantasy.TextPart{
+					Text: t.Content,
+				})
+			}
+		}
+
+		messages = append(messages, fantasy.Message{
+			Role:    role,
+			Content: parts,
+		})
+	}
+
+	return messages
 }

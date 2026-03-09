@@ -79,7 +79,7 @@ func InitAppModel() Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.spinner.Init()
+	return tea.Batch(m.spinner.Init(), tea.RequestWindowSize)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -98,8 +98,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.App.Session.ID != "" {
 				if m.promptInput.Value() != "" {
-					*m.App.Messages = append(
-						*m.App.Messages,
+					userMessage :=
 						message.Message{
 							ID:        "hello",
 							MessageID: "hello",
@@ -111,7 +110,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								},
 							},
 							Layout: m.Layout,
-						},
+						}
+
+					userMessage.UIString = userMessage.ToUIString()
+					*m.App.Messages = append(
+						*m.App.Messages,
+						userMessage,
 						message.Message{
 							ID:        "hello",
 							MessageID: "hello",
@@ -130,8 +134,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.App.Session.ID = "hello"
 
 				if m.homeinput.Value() != "" {
-					*m.App.Messages = append(
-						*m.App.Messages,
+					userMessage :=
 						message.Message{
 							ID:        "hello",
 							MessageID: "hello",
@@ -143,7 +146,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								},
 							},
 							Layout: m.Layout,
-						},
+						}
+
+					userMessage.UIString = userMessage.ToUIString()
+					*m.App.Messages = append(
+						*m.App.Messages,
+						userMessage,
 						message.Message{
 							ID:        "hello",
 							MessageID: "hello",
@@ -166,13 +174,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 	case tea.WindowSizeMsg:
-		// msg.Height -= 2 // Make space for the status bar
-		m.Layout.Width, m.Layout.Height = msg.Width, msg.Height
+		var requireReload = false
+		if m.Layout.Width != msg.Width || m.Layout.Height != msg.Height {
+			requireReload = true
+		}
+		if requireReload {
+			// msg.Height -= 2 // Make space for the status bar
+			m.Layout.Width, m.Layout.Height = msg.Width, msg.Height
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Reload(msg)
+			m.App.RerenderMessages()
 
-		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Reload(msg)
-
-		cmds = append(cmds, cmd)
+			cmds = append(cmds, cmd)
+		}
 	case reloadMsg:
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.ReloadAndScrollDown(msg)
@@ -272,5 +286,10 @@ func (m Model) prompt() string {
 }
 
 func (m Model) statusBar() string {
-	return lipgloss.NewStyle().Padding(0, 2).Render(m.spinner.View().Content)
+	content := ""
+
+	if m.App.Agent.Generating {
+		content += m.spinner.View().Content
+	}
+	return lipgloss.NewStyle().Padding(0, 2).Render(content)
 }

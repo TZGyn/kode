@@ -28,3 +28,9 @@ func NewApp(layout *layout.Layout) *App {
 
 	return &App{Agent: agent, Messages: messages, Layout: layout}
 }
+
+func (a *App) RerenderMessages() {
+	for i, _ := range *a.Messages {
+		(*a.Messages)[i].UIString = (*a.Messages)[i].ToUIString()
+	}
+}

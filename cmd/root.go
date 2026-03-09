@@ -19,14 +19,16 @@ var RootCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		model := model.InitAppModel()
 		p := tea.NewProgram(
-			model.InitAppModel(),
+			model,
 			tea.WithContext(cmd.Context()),
 		)
 		if _, err := p.Run(); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		// fmt.Printf("model.App.Messages: %v\n", model.App.Messages)
 		return nil
 	},
 }

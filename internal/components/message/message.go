@@ -14,8 +14,10 @@ type Message struct {
 	Role MessageRole
 
 	Content *Content
+
+	UIString string
 }
 
-func (m *Message) ToUIString() string {
+func (m Message) ToUIString() string {
 	return Render(m.Role, m.Layout.Width, m.Content.String())
 }

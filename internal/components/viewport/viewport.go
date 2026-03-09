@@ -33,6 +33,8 @@ func CreateViewport(content string, app *app.App, promptInput *prompt.PromptComp
 	keymap.Down.SetKeys("down")
 	keymap.HalfPageUp.SetKeys("ctrl+u")
 	keymap.HalfPageDown.SetKeys("ctrl+d")
+	keymap.PageUp.SetKeys("pgup")
+	keymap.PageUp.SetKeys("pgdown")
 
 	vp.KeyMap = keymap
 	vp.SoftWrap = true
@@ -49,7 +51,7 @@ func (m Model) Reload(msg tea.Msg) (Model, tea.Cmd) {
 	var content []string
 
 	for _, m := range *m.App.Messages {
-		content = append(content, m.ToUIString())
+		content = append(content, m.UIString)
 	}
 
 	m.viewport.SetContent(strings.Join(content, "\n\n"))

@@ -4,6 +4,8 @@ import (
 	"math"
 
 	"charm.land/lipgloss/v2"
+	"github.com/TZGyn/kode/internal/markdown"
+	"github.com/TZGyn/kode/internal/theme"
 )
 
 func card(role MessageRole, width int) lipgloss.Style {
@@ -24,25 +26,19 @@ func card(role MessageRole, width int) lipgloss.Style {
 	}
 
 	if role == Assistant {
-		b := lipgloss.ThickBorder()
-
 		return lipgloss.NewStyle().Foreground(
 			lipgloss.Color("#ffffff"),
 		).Background(
 			lipgloss.Color("#000000"),
-		).Border(
-			b,
-			false,
-			false,
-			false,
-			true,
-		).BorderLeftForeground(lipgloss.Color("#ff0000")).Width(width - 4)
+		).Width(width - 4)
 	}
 
 	return lipgloss.NewStyle()
 }
 
 func Render(role MessageRole, width int, content string) string {
+	t := theme.GetTheme()
+
 	if role == User {
 		return card(role, width).Render(lipgloss.NewStyle().Foreground(
 			lipgloss.White,
@@ -54,13 +50,23 @@ func Render(role MessageRole, width int, content string) string {
 	}
 
 	if role == Assistant {
-		return card(role, width).Render(lipgloss.NewStyle().Foreground(
+		card := card(role, width)
+		message := lipgloss.NewStyle().Foreground(
 			lipgloss.White,
 		).Background(
-			lipgloss.Color("#131313"),
+			t.Background(),
 		).Padding(
 			1,
-		).Width(int(math.Min(float64(width-4), 100))).Render(content))
+		).Width(
+			int(math.Min(float64(width-4), 100)),
+		)
+
+		content := markdown.ToMarkdown(
+			content,
+			message.GetWidth(),
+		)
+
+		return card.Render(message.Render(content))
 	}
 
 	return card(role, width).Render(lipgloss.NewStyle().Render(content))
