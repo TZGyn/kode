@@ -2,6 +2,7 @@ package message
 
 import (
 	"math"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/TZGyn/kode/internal/markdown"
@@ -36,21 +37,42 @@ func card(role MessageRole, width int) lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
-func Render(role MessageRole, width int, content string) string {
+func RenderParts(role MessageRole, width int, c *Content) string {
+	card := card(role, width)
+
+	var content strings.Builder
+
+	for _, part := range *c {
+		switch p := part.(type) {
+		case TextPart:
+			content.WriteString(RenderTextPart(role, width, p.String()))
+		case ReasoningPart:
+			content.WriteString(RenderReasonPart(role, width, p.String()))
+		}
+		content.WriteString("\n")
+	}
+
+	return card.Render(content.String())
+}
+
+func RenderReasonPart(role MessageRole, width int, reasoning string) string {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("#444444")).Italic(true).Render(reasoning)
+}
+
+func RenderTextPart(role MessageRole, width int, content string) string {
 	t := theme.GetTheme()
 
 	if role == User {
-		return card(role, width).Render(lipgloss.NewStyle().Foreground(
+		return lipgloss.NewStyle().Foreground(
 			lipgloss.White,
 		).Background(
 			lipgloss.Color("#131313"),
 		).Padding(
 			1,
-		).Width(int(math.Min(float64(width-4), 100))).Render(content))
+		).Width(int(math.Min(float64(width-4), 100))).Render(content)
 	}
 
 	if role == Assistant {
-		card := card(role, width)
 		message := lipgloss.NewStyle().Foreground(
 			lipgloss.White,
 		).Background(
@@ -66,8 +88,8 @@ func Render(role MessageRole, width int, content string) string {
 			message.GetWidth(),
 		)
 
-		return card.Render(message.Render(content))
+		return message.Render(content)
 	}
 
-	return card(role, width).Render(lipgloss.NewStyle().Render(content))
+	return lipgloss.NewStyle().Render(content)
 }

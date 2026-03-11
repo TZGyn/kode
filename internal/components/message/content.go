@@ -19,6 +19,21 @@ func (c *Content) AppendTextDelta(delta string) {
 	}
 }
 
+func (c *Content) AppendReasonDelta(delta string) {
+	if len(*c) == 0 {
+		*c = append(*c, ReasoningPart{Reason: delta})
+		return
+	}
+
+	lastPart := (*c)[len(*c)-1]
+
+	if p, ok := lastPart.(ReasoningPart); ok {
+		(*c)[len(*c)-1] = ReasoningPart{Reason: p.Reason + delta}
+	} else {
+		*c = append(*c, ReasoningPart{Reason: delta})
+	}
+}
+
 func (c *Content) String() string {
 	var content strings.Builder
 

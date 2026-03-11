@@ -269,14 +269,16 @@ func (m Model) home() string {
 }
 
 func (m Model) chat() string {
-	mainLayout := lipgloss.NewStyle().Background(lipgloss.Color("#000000")).Render(lipgloss.Place(
-		m.Layout.Width,
-		m.Layout.Height,
-		lipgloss.Left,
-		lipgloss.Bottom,
-		m.viewport.View().Content+"\n\n"+m.prompt()+"\n"+m.statusBar()+"\n",
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(lipgloss.Color("#000000"))),
-	))
+	mainLayout := lipgloss.NewStyle().Background(lipgloss.Color("#000000")).Render(
+		lipgloss.Place(
+			m.Layout.Width,
+			m.Layout.Height,
+			lipgloss.Left,
+			lipgloss.Bottom,
+			m.viewport.View().Content+"\n\n"+m.prompt()+"\n"+m.statusBar()+"\n",
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(lipgloss.Color("#000000"))),
+		),
+	)
 
 	return mainLayout
 }

@@ -19,5 +19,5 @@ type Message struct {
 }
 
 func (m Message) ToUIString() string {
-	return Render(m.Role, m.Layout.Width, m.Content.String())
+	return RenderParts(m.Role, m.Layout.Width, m.Content)
 }
