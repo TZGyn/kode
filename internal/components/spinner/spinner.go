@@ -120,6 +120,6 @@ func (s *Spinner) Update(msg tea.Msg) (*Spinner, tea.Cmd) {
 
 func (s *Spinner) View() tea.View {
 	view := tea.View{}
-	view.Content = s.spinner.View() + getStyle().Render("  "+"Generating")
+	view.Content = s.spinner.View()
 	return view
 }

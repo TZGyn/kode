@@ -16,6 +16,8 @@ type PromptComponent struct {
 	minWidth, minHeight int
 }
 
+const MinHeight = 3
+
 func NewPrompt() PromptComponent {
 
 	initialWidth := 0

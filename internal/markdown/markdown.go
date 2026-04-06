@@ -33,7 +33,7 @@ func GetMarkdownRenderer(width int) *glamour.TermRenderer {
 func generateMarkdownStyleConfig() ansi.StyleConfig {
 	t := theme.GetTheme()
 	background := AdaptiveColorToString(t.Background())
-	// background := AdaptiveColorToString(compat.AdaptiveColor{
+	// background = AdaptiveColorToString(compat.AdaptiveColor{
 	// 	Light: lipgloss.Color("#ffffff"),
 	// 	Dark:  lipgloss.Color("#000000"),
 	// })

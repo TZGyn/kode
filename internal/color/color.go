@@ -5,6 +5,13 @@ import (
 	"image/color"
 	"math"
 	"strconv"
+
+	"charm.land/lipgloss/v2"
+)
+
+const (
+	MaxColorValue uint8 = 255
+	MinColorValue uint8 = 0
 )
 
 type Color color.RGBA
@@ -54,4 +61,8 @@ func (c Color) ToHex(bg Color) string {
 	b := uint8(math.Round(float64(c.B)*alpha + float64(bg.B)*invAlpha))
 
 	return fmt.Sprintf("#%02X%02X%02X", r, g, b)
+}
+
+func (c Color) ToColor(bg Color) color.Color {
+	return lipgloss.Color(c.ToHex(bg))
 }

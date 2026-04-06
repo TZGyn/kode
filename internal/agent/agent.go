@@ -3,13 +3,10 @@ package agent
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"charm.land/fantasy"
-	"charm.land/fantasy/providers/openai"
 	"github.com/TZGyn/kode/internal/components/message"
 	"github.com/TZGyn/kode/internal/layout"
-	"github.com/joho/godotenv"
 )
 
 type Agent struct {
@@ -18,45 +15,33 @@ type Agent struct {
 
 	RequestRefresh bool
 
-	Generating bool
+	Generating    bool
+	HasPressedEsc bool
 
 	messages *[]message.Message
 
 	Layout *layout.Layout
 }
 
-func New(messages *[]message.Message, layout *layout.Layout) *Agent {
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("No .env found")
-	}
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		fmt.Println("Please set OPENAI_API_KEY environment variable")
-		os.Exit(1)
-	}
-
-	provider, err := openai.New(openai.WithAPIKey(apiKey))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating OpenAI provider: %v\n", err)
-		os.Exit(1)
-	}
-
-	ctx := context.Background()
-
-	model, err := provider.LanguageModel(ctx, "gpt-5-nano")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
+func New(messages *[]message.Message, layout *layout.Layout, config Config) *Agent {
 	agent := fantasy.NewAgent(
-		model,
+		config.model,
 		fantasy.WithSystemPrompt(""),
 		fantasy.WithTools(),
 	)
 
-	return &Agent{Agent: agent, Context: ctx, messages: messages, Layout: layout}
+	return &Agent{Agent: agent, Context: config.ctx, messages: messages, Layout: layout}
+}
+
+func (a *Agent) SwitchProvider(config Config) {
+	agent := fantasy.NewAgent(
+		config.model,
+		fantasy.WithSystemPrompt(""),
+		fantasy.WithTools(),
+	)
+
+	a.Agent = agent
+	a.Context = config.ctx
 }
 
 func (a *Agent) Generate(prompt string) {
@@ -75,12 +60,24 @@ func (a *Agent) Generate(prompt string) {
 
 		// When we receive a chunk of streaming data.
 		OnTextDelta: func(id, text string) error {
-			// _, fmtErr := fmt.Print(text)
-			// a.RequestRefresh = true
 			messages := *a.messages
 
 			part := messages[len(messages)-1]
 			part.Content.AppendTextDelta(text)
+			part.UIString = part.ToUIString()
+			messages[len(messages)-1] = part
+
+			*a.messages = messages
+
+			a.RequestRefresh = true
+			return nil
+		},
+
+		OnReasoningDelta: func(id, text string) error {
+			messages := *a.messages
+
+			part := messages[len(messages)-1]
+			part.Content.AppendReasonDelta(text)
 			part.UIString = part.ToUIString()
 			messages[len(messages)-1] = part
 
@@ -116,8 +113,21 @@ func (a *Agent) Generate(prompt string) {
 	// Finally, let's stream everything!
 	_, err := a.Agent.Stream(a.Context, streamCall)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
-		os.Exit(1)
+		messages := *a.messages
+
+		part := messages[len(messages)-1]
+		part.Content.AppendFinish(
+			message.FinishReasonError,
+			"Error generating response",
+			fmt.Sprintf("%v", err),
+		)
+		part.UIString = part.ToUIString()
+		messages[len(messages)-1] = part
+
+		*a.messages = messages
+		a.RequestRefresh = true
+		// fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
+		// os.Exit(1)
 	}
 }
 

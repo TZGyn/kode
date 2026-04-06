@@ -1,6 +1,9 @@
 package message
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 type Content []ContentPart
 
@@ -32,6 +35,15 @@ func (c *Content) AppendReasonDelta(delta string) {
 	} else {
 		*c = append(*c, ReasoningPart{Reason: delta})
 	}
+}
+
+func (c *Content) AppendFinish(reason FinishReason, message, details string) {
+	*c = append(*c, FinishPart{
+		Reason:  reason,
+		Time:    time.Now().UTC().UnixMilli(),
+		Message: message,
+		Details: details,
+	})
 }
 
 func (c *Content) String() string {

@@ -5,11 +5,13 @@ package model
 
 import (
 	"fmt"
+	"strings"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/TZGyn/kode/internal/app"
+	"github.com/TZGyn/kode/internal/components/commandlist"
 	"github.com/TZGyn/kode/internal/components/message"
 	"github.com/TZGyn/kode/internal/components/prompt"
 	"github.com/TZGyn/kode/internal/components/spinner"
@@ -27,6 +29,9 @@ type Model struct {
 	homeinput   textarea.Model
 	promptInput *prompt.PromptComponent
 	viewport    viewport.Model
+	commandList commandlist.CommandList
+
+	showCommandModal bool
 
 	// use to request window size every 5 frames in windows
 	// due to windows not having terminal resize message
@@ -66,15 +71,18 @@ func InitAppModel() Model {
 
 	app := app.NewApp(&layout)
 
-	viewport := viewport.CreateViewport("", app, &prompt, &layout)
+	vp := viewport.CreateViewport("", app, &prompt, &layout)
+
+	cl := commandlist.New()
 
 	return Model{
 		spinner:     s,
 		App:         app,
 		Layout:      &layout,
-		viewport:    viewport,
+		viewport:    vp,
 		homeinput:   ta,
 		promptInput: &prompt,
+		commandList: cl,
 	}
 }
 
@@ -83,6 +91,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	updateInput := true
 	var cmds []tea.Cmd
 
 	var cmd tea.Cmd
@@ -90,40 +99,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "q", "esc", "ctrl+c":
+		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "esc":
+			if m.App.Agent.HasPressedEsc {
+			} else {
+				m.App.Agent.HasPressedEsc = true
+			}
 		case "enter":
+			if m.App.Agent.Generating {
+				updateInput = false
+				break
+			}
+
 			if m.promptInput.Value() == "/exit" {
 				return m, tea.Quit
 			}
 			if m.App.Session.ID != "" {
 				if m.promptInput.Value() != "" {
-					userMessage :=
-						message.Message{
-							ID:        "hello",
-							MessageID: "hello",
-							SessionID: "hello",
-							Role:      message.User,
-							Content: &message.Content{
-								message.TextPart{
-									Content: m.promptInput.Value(),
-								},
-							},
-							Layout: m.Layout,
-						}
+					userMessage := message.NewMessageWithText(message.User, m.promptInput.Value(), m.Layout)
+					assistantMessage := message.NewEmptyMessage(message.Assistant, m.Layout)
 
 					userMessage.UIString = userMessage.ToUIString()
 					*m.App.Messages = append(
 						*m.App.Messages,
 						userMessage,
-						message.Message{
-							ID:        "hello",
-							MessageID: "hello",
-							SessionID: "hello",
-							Role:      message.Assistant,
-							Content:   &message.Content{},
-							Layout:    m.Layout,
-						},
+						assistantMessage,
 					)
 
 					go func() {
@@ -131,35 +132,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}()
 				}
 			} else {
-				m.App.Session.ID = "hello"
+				m.App.Session = app.NewSession()
 
 				if m.homeinput.Value() != "" {
-					userMessage :=
-						message.Message{
-							ID:        "hello",
-							MessageID: "hello",
-							SessionID: "hello",
-							Role:      message.User,
-							Content: &message.Content{
-								message.TextPart{
-									Content: m.homeinput.Value(),
-								},
-							},
-							Layout: m.Layout,
-						}
+					userMessage := message.NewMessageWithText(message.User, m.homeinput.Value(), m.Layout)
+					assistantMessage := message.NewEmptyMessage(message.Assistant, m.Layout)
 
 					userMessage.UIString = userMessage.ToUIString()
 					*m.App.Messages = append(
 						*m.App.Messages,
 						userMessage,
-						message.Message{
-							ID:        "hello",
-							MessageID: "hello",
-							SessionID: "hello",
-							Role:      message.Assistant,
-							Content:   &message.Content{},
-							Layout:    m.Layout,
-						},
+						assistantMessage,
 					)
 
 					go func() {
@@ -181,15 +164,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if requireReload {
 			// msg.Height -= 2 // Make space for the status bar
 			m.Layout.Width, m.Layout.Height = msg.Width, msg.Height
+
+			m.App.RerenderMessages()
+
 			var cmd tea.Cmd
 			m.viewport, cmd = m.viewport.Reload(msg)
-			m.App.RerenderMessages()
 
 			cmds = append(cmds, cmd)
 		}
 	case reloadMsg:
 		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.ReloadAndScrollDown(msg)
+
+		if m.viewport.AtBottom() {
+			m.viewport, cmd = m.viewport.ReloadAndScrollDown(msg)
+		} else {
+			m.viewport, cmd = m.viewport.Reload(msg)
+		}
 
 		cmds = append(cmds, cmd)
 	case errMsg:
@@ -202,13 +192,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
 
-	m.homeinput, cmd = m.homeinput.Update(msg)
-	cmds = append(cmds, cmd)
+	if updateInput {
+		m.homeinput, cmd = m.homeinput.Update(msg)
+		cmds = append(cmds, cmd)
 
-	m.promptInput, cmd = m.promptInput.Update(msg)
-	cmds = append(cmds, cmd)
+		m.promptInput, cmd = m.promptInput.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	prompt := m.promptInput.Value()
+	if strings.HasPrefix(prompt, "/") {
+		m.showCommandModal = true
+	} else {
+		m.showCommandModal = false
+	}
 
 	m.spinner, cmd = m.spinner.Update(msg)
+	cmds = append(cmds, cmd)
+
+	m.commandList, cmd = m.commandList.Update(msg)
 	cmds = append(cmds, cmd)
 
 	m.frame += 1
@@ -235,7 +237,21 @@ func (m Model) View() tea.View {
 	if m.App.Session.ID == "" {
 		view = tea.NewView(m.home())
 	} else {
-		view = tea.NewView(m.chat())
+		chatLayer := lipgloss.NewLayer(m.chat())
+
+		layers := []*lipgloss.Layer{
+			chatLayer,
+		}
+
+		// if m.showCommandModal {
+		// 	layers = append(layers, lipgloss.NewLayer(m.modal()).X(0).Y((m.Layout.Height/2)-4))
+		// }
+
+		layers = append(layers, m.promptLayer())
+
+		comp := lipgloss.NewCompositor(layers...)
+
+		view = tea.NewView(comp.Render())
 	}
 
 	view.AltScreen = true
@@ -275,7 +291,7 @@ func (m Model) chat() string {
 			m.Layout.Height,
 			lipgloss.Left,
 			lipgloss.Bottom,
-			m.viewport.View().Content+"\n\n"+m.prompt()+"\n"+m.statusBar()+"\n",
+			m.viewport.View().Content+"\n\n"+"\n\n\n\n\n"+"\n"+m.statusBar()+"\n",
 			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(lipgloss.Color("#000000"))),
 		),
 	)
@@ -284,14 +300,38 @@ func (m Model) chat() string {
 }
 
 func (m Model) prompt() string {
-	return lipgloss.NewStyle().Padding(1).Background(lipgloss.Color("#000000")).Render(m.promptInput.View().Content)
+	return lipgloss.NewStyle().
+		Padding(1).
+		Background(lipgloss.Color("#000000")).
+		Render(m.promptInput.View().Content)
+}
+
+func (m Model) promptLayer() *lipgloss.Layer {
+	y := m.Layout.Height - 9
+
+	if m.promptInput.Height > prompt.MinHeight {
+		y -= (m.promptInput.Height - prompt.MinHeight)
+	}
+
+	return lipgloss.NewLayer(m.prompt()).X(0).Y(y)
 }
 
 func (m Model) statusBar() string {
 	content := ""
 
 	if m.App.Agent.Generating {
-		content += m.spinner.View().Content
+		content += m.spinner.View().Content + " "
+
+		if m.App.Agent.HasPressedEsc {
+			content += "esc again to confirm"
+		} else {
+			content += "esc interrupt"
+		}
 	}
+
 	return lipgloss.NewStyle().Padding(0, 2).Render(content)
+}
+
+func (m Model) modal() string {
+	return m.commandList.View().Content
 }

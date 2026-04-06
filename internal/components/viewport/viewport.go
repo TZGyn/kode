@@ -107,3 +107,7 @@ func (m Model) View() tea.View {
 	v.SetContent(fmt.Sprintf("%s", m.viewport.View()))
 	return v
 }
+
+func (m Model) AtBottom() bool {
+	return m.viewport.AtBottom()
+}
