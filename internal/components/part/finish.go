@@ -1,33 +1,4 @@
-package message
-
-type MessageRole string
-
-const (
-	Assistant MessageRole = "assistant"
-	User      MessageRole = "user"
-	System    MessageRole = "system"
-	Tool      MessageRole = "tool"
-)
-
-type ContentPart interface {
-	String() string
-}
-
-type TextPart struct {
-	Content string
-}
-
-func (p TextPart) String() string {
-	return p.Content
-}
-
-type ReasoningPart struct {
-	Reason string
-}
-
-func (p ReasoningPart) String() string {
-	return p.Reason
-}
+package part
 
 type FinishReason string
 
@@ -45,9 +16,9 @@ const (
 
 type FinishPart struct {
 	Reason  FinishReason `json:"reason"`
-	Time    int64        `json:"time"`
 	Message string       `json:"message,omitempty"`
 	Details string       `json:"details,omitempty"`
+	Time    int64        `json:"time"`
 }
 
 func (f FinishPart) String() string {

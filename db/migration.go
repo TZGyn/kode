@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"embed"
-	"fmt"
 	"path/filepath"
 
 	"github.com/adrg/xdg"
@@ -20,8 +19,6 @@ func InitDB() error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println(configFilePath)
 
 	db, err := sql.Open("sqlite", configFilePath)
 	if err != nil {

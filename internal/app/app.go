@@ -41,7 +41,7 @@ func NewApp(layout *layout.Layout) *App {
 	}
 
 	config := agent.NewConfig("openai", "gpt-5-mini", apiKey)
-	// config = agent.NewConfig("openrouter", "qwen/qwen3.6-plus:free", openrouterApiKey)
+	config = agent.NewConfig("openrouter", "openai/gpt-oss-120b:free", openrouterApiKey)
 
 	agent := agent.New(messages, layout, config)
 

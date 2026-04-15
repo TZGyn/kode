@@ -192,19 +192,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
 
+	shouldUpdatePrompt := true
+	if m.commandList.IsVisible() {
+		if msg, ok := msg.(tea.KeyMsg); ok {
+			if msg.String() == "enter" {
+				shouldUpdatePrompt = false
+			}
+		}
+	}
+
 	if updateInput {
 		m.homeinput, cmd = m.homeinput.Update(msg)
 		cmds = append(cmds, cmd)
 
-		m.promptInput, cmd = m.promptInput.Update(msg)
-		cmds = append(cmds, cmd)
+		if shouldUpdatePrompt {
+			m.promptInput, cmd = m.promptInput.Update(msg)
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	prompt := m.promptInput.Value()
 	if strings.HasPrefix(prompt, "/") {
-		m.showCommandModal = true
+		if !m.commandList.IsVisible() {
+			m.commandList.Show(prompt)
+		} else {
+			m.commandList.Filter(prompt)
+		}
 	} else {
-		m.showCommandModal = false
+		if m.commandList.IsVisible() {
+			m.commandList.Hide()
+		}
 	}
 
 	m.spinner, cmd = m.spinner.Update(msg)
@@ -242,10 +259,10 @@ func (m Model) View() tea.View {
 		layers := []*lipgloss.Layer{
 			chatLayer,
 		}
-
-		// if m.showCommandModal {
-		// 	layers = append(layers, lipgloss.NewLayer(m.modal()).X(0).Y((m.Layout.Height/2)-4))
-		// }
+		if m.commandList.IsVisible() {
+			modalY := 5
+			layers = append(layers, lipgloss.NewLayer(m.modal()).X(0).Y(modalY))
+		}
 
 		layers = append(layers, m.promptLayer())
 
@@ -333,5 +350,5 @@ func (m Model) statusBar() string {
 }
 
 func (m Model) modal() string {
-	return m.commandList.View().Content
+	return m.commandList.View()
 }

@@ -1,6 +1,7 @@
 package message
 
 import (
+	"github.com/TZGyn/kode/internal/components/part"
 	"github.com/TZGyn/kode/internal/layout"
 	"github.com/google/uuid"
 )
@@ -26,7 +27,7 @@ func NewMessageWithText(role MessageRole, text string, layout *layout.Layout) Me
 		SessionID: uuid.NewString(),
 		Role:      role,
 		Content: &Content{
-			TextPart{
+			part.TextPart{
 				Content: text,
 			},
 		},

@@ -5,7 +5,9 @@ import (
 	"fmt"
 
 	"charm.land/fantasy"
+	"github.com/TZGyn/kode/internal/agent/tools"
 	"github.com/TZGyn/kode/internal/components/message"
+	"github.com/TZGyn/kode/internal/components/part"
 	"github.com/TZGyn/kode/internal/layout"
 )
 
@@ -27,7 +29,7 @@ func New(messages *[]message.Message, layout *layout.Layout, config Config) *Age
 	agent := fantasy.NewAgent(
 		config.model,
 		fantasy.WithSystemPrompt(""),
-		fantasy.WithTools(),
+		fantasy.WithTools(tools.GetTools()...),
 	)
 
 	return &Agent{Agent: agent, Context: config.ctx, messages: messages, Layout: layout}
@@ -37,7 +39,7 @@ func (a *Agent) SwitchProvider(config Config) {
 	agent := fantasy.NewAgent(
 		config.model,
 		fantasy.WithSystemPrompt(""),
-		fantasy.WithTools(),
+		fantasy.WithTools(tools.GetTools()...),
 	)
 
 	a.Agent = agent
@@ -60,16 +62,7 @@ func (a *Agent) Generate(prompt string) {
 
 		// When we receive a chunk of streaming data.
 		OnTextDelta: func(id, text string) error {
-			messages := *a.messages
-
-			part := messages[len(messages)-1]
-			part.Content.AppendTextDelta(text)
-			part.UIString = part.ToUIString()
-			messages[len(messages)-1] = part
-
-			*a.messages = messages
-
-			a.RequestRefresh = true
+			a.AppendTextDelta(text)
 			return nil
 		},
 
@@ -89,18 +82,19 @@ func (a *Agent) Generate(prompt string) {
 
 		// When tool calls are invoked.
 		OnToolCall: func(toolCall fantasy.ToolCallContent) error {
-			fmt.Printf("-> Invoking the %s tool with input %s", toolCall.ToolName, toolCall.Input)
+			a.AppendToolCall(
+				toolCall.ToolCallID,
+				toolCall.ToolName,
+				toolCall.Input,
+			)
 			return nil
 		},
 
 		// When a tool call completes.
 		OnToolResult: func(res fantasy.ToolResultContent) error {
-			text, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](res.Result)
-			if !ok {
-				return fmt.Errorf("failed to cast result to text")
-			}
-			_, fmtErr := fmt.Printf("\n-> Using the %s tool: %s", res.ToolName, text.Text)
-			return fmtErr
+			a.AppendToolResult(res)
+
+			return nil
 		},
 
 		// When a step finishes, such as a tool call or a response from the
@@ -115,14 +109,14 @@ func (a *Agent) Generate(prompt string) {
 	if err != nil {
 		messages := *a.messages
 
-		part := messages[len(messages)-1]
-		part.Content.AppendFinish(
-			message.FinishReasonError,
+		p := messages[len(messages)-1]
+		p.Content.AppendFinish(
+			part.FinishReasonError,
 			"Error generating response",
 			fmt.Sprintf("%v", err),
 		)
-		part.UIString = part.ToUIString()
-		messages[len(messages)-1] = part
+		p.UIString = p.ToUIString()
+		messages[len(messages)-1] = p
 
 		*a.messages = messages
 		a.RequestRefresh = true
@@ -147,7 +141,7 @@ func (a *Agent) GetFantasyMessages() []fantasy.Message {
 
 		for _, p := range *m.Content {
 			switch t := p.(type) {
-			case message.TextPart:
+			case part.TextPart:
 				parts = append(parts, fantasy.TextPart{
 					Text: t.Content,
 				})
@@ -161,4 +155,46 @@ func (a *Agent) GetFantasyMessages() []fantasy.Message {
 	}
 
 	return messages
+}
+
+func (a *Agent) AppendTextDelta(delta string) {
+	messages := *a.messages
+
+	part := messages[len(messages)-1]
+	part.Content.AppendTextDelta(delta)
+	part.UIString = part.ToUIString()
+
+	messages[len(messages)-1] = part
+
+	*a.messages = messages
+
+	a.RequestRefresh = true
+}
+
+func (a *Agent) AppendToolCall(ID string, name string, input string) {
+	messages := *a.messages
+
+	part := messages[len(messages)-1]
+	part.Content.AppendToolCall(ID, name, input)
+	part.UIString = part.ToUIString()
+
+	messages[len(messages)-1] = part
+
+	*a.messages = messages
+
+	a.RequestRefresh = true
+}
+
+func (a *Agent) AppendToolResult(result fantasy.ToolResultContent) {
+	messages := *a.messages
+
+	part := messages[len(messages)-1]
+	part.Content.AppendToolResult(result)
+	part.UIString = part.ToUIString()
+
+	messages[len(messages)-1] = part
+
+	*a.messages = messages
+
+	a.RequestRefresh = true
 }

@@ -123,3 +123,8 @@ func (c *PromptComponent) Lines() int {
 
 	return num_of_lines + 1
 }
+
+func (c *PromptComponent) SetValue(value string) {
+	c.textarea.SetValue(value)
+	c.Resize()
+}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/TZGyn/kode/internal/components/part"
 	"github.com/TZGyn/kode/internal/markdown"
 )
 
@@ -13,14 +14,18 @@ func RenderParts(role MessageRole, width int, c *Content) string {
 
 	var content strings.Builder
 
-	for i, part := range *c {
-		switch p := part.(type) {
-		case TextPart:
-			content.WriteString(RenderTextPart(role, width, p.String()))
-		case ReasoningPart:
-			content.WriteString(RenderReasonPart(role, width, p.String()))
-		case FinishPart:
-			content.WriteString(RenderFinishPart(role, width, p.Reason, p.Message, p.Details))
+	for i, p := range *c {
+		switch t := p.(type) {
+		case part.TextPart:
+			content.WriteString(RenderTextPart(role, width, t.String()))
+		case part.ReasoningPart:
+			content.WriteString(RenderReasonPart(role, width, t.String()))
+		case part.FinishPart:
+			content.WriteString(RenderFinishPart(role, width, t.Reason, t.Message, t.Details))
+		case part.ToolCallPart:
+			content.WriteString(RenderToolCallPart(role, width, t.Name, t.Input))
+		case part.ToolResultPart:
+			content.WriteString(RenderToolResultPart(role, width, t))
 		}
 		if i != len((*c))-1 {
 			content.WriteString("\n\n")
@@ -90,7 +95,7 @@ func RenderTextPart(role MessageRole, width int, content string) string {
 	return lipgloss.NewStyle().Render(content)
 }
 
-func RenderFinishPart(role MessageRole, width int, reason FinishReason, title string, details string) string {
+func RenderFinishPart(role MessageRole, width int, reason part.FinishReason, title string, details string) string {
 	message := lipgloss.NewStyle().Foreground(
 		lipgloss.Red,
 	).Background(
@@ -103,4 +108,34 @@ func RenderFinishPart(role MessageRole, width int, reason FinishReason, title st
 	)
 
 	return message.Render(title + "\n" + details)
+}
+
+func RenderToolCallPart(role MessageRole, width int, name string, input string) string {
+	message := lipgloss.NewStyle().Foreground(
+		lipgloss.White,
+	).Background(
+		lipgloss.Color("#000000"),
+		// t.Background(),
+	).Padding(
+		1,
+	).Width(
+		int(math.Min(float64(width-4), 100)),
+	)
+
+	return message.Render(name + "\n" + input)
+}
+
+func RenderToolResultPart(role MessageRole, width int, tr part.ToolResultPart) string {
+	message := lipgloss.NewStyle().Foreground(
+		lipgloss.White,
+	).Background(
+		lipgloss.Color("#000000"),
+		// t.Background(),
+	).Padding(
+		1,
+	).Width(
+		int(math.Min(float64(width-4), 100)),
+	)
+
+	return message.Render("Content:\n" + tr.Content + "\n" + "Data:\n" + tr.Data)
 }
